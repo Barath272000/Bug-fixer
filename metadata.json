@@ -1,0 +1,6 @@
+{
+  "name": "BugFixAI",
+  "description": "AI-powered automated bug detection, analysis pipeline, and code repair dashboard.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
