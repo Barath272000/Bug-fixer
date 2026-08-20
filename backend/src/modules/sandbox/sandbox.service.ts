@@ -1,0 +1,1 @@
+import{dockerService}from'./docker.service.js';export async function runSandbox(workspace:string,command:string){if(!command.trim())throw new Error('Sandbox command is required');return dockerService.execute(workspace,command);}

@@ -1,0 +1,2 @@
+export interface CallGraphNode{file:string;name:string;calls:string[];}
+export function buildCallGraph(symbols:Array<{file:string;name:string}>=[],files:Array<{file:string;content:string}>=[]):CallGraphNode[]{const names=new Set(symbols.map((symbol)=>symbol.name));return symbols.map((symbol)=>{const source=files.find((file)=>file.file===symbol.file)?.content??'';const calls:string[]=[];for(const name of names){if(name!==symbol.name&&new RegExp(`\b${name}\s*\(`).test(source))calls.push(name);}return{file:symbol.file,name:symbol.name,calls};});}

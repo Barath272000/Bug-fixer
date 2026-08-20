@@ -1,0 +1,1 @@
+export function countChangedLines(diff:string):number{let count=0;for(const line of diff.split('\n')){if((line.startsWith('+')&&!line.startsWith('+++'))||(line.startsWith('-')&&!line.startsWith('---')))count++;}return count;}

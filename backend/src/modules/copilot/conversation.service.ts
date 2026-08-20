@@ -1,0 +1,3 @@
+import{prisma}from'../../config/database.js';import{AppError}from'../../common/errors/AppError.js';
+export async function createConversation(userId:string,projectId?:string){if(projectId){const project=await prisma.project.findFirst({where:{id:projectId,ownerId:userId}});if(!project)throw new AppError(404,'PROJECT_NOT_FOUND','Project was not found');}return prisma.copilotConversation.create({data:{userId,projectId}});}
+export async function getConversation(userId:string,id:string){const conversation=await prisma.copilotConversation.findFirst({where:{id,userId},include:{messages:{orderBy:{createdAt:'asc'},include:{proposal:true}}}});if(!conversation)throw new AppError(404,'CONVERSATION_NOT_FOUND','Conversation was not found');return conversation;}

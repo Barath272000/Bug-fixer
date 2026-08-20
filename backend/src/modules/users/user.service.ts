@@ -1,0 +1,1 @@
+import{AppError}from'../../common/errors/AppError.js';import{userRepository}from'./user.repository.js';export async function getUser(id:string){const user=await userRepository.findById(id);if(!user)throw new AppError(404,'USER_NOT_FOUND','User was not found');return user;}

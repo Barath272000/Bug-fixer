@@ -1,0 +1,3 @@
+import {Router} from 'express';import multer from 'multer';import os from 'node:os';import path from 'node:path';import {env} from '../../config/env.js';import {requireAuth} from '../../common/middleware/auth.middleware.js';import {asyncHandler} from '../../common/utils/async-handler.js';import {upload} from './upload.controller.js';
+const uploadMiddleware=multer({dest:path.join(os.tmpdir(),'bugfixai-uploads'),limits:{fileSize:env.MAX_UPLOAD_BYTES},fileFilter:(_req,file,cb)=>{const ext=path.extname(file.originalname).toLowerCase();cb(null,['.zip','.tar','.gz','.tgz'].includes(ext));}});
+export const uploadsRoutes=Router();uploadsRoutes.post('/:id/upload',requireAuth,uploadMiddleware.single('file'),asyncHandler(upload));

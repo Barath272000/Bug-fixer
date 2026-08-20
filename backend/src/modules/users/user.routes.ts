@@ -1,0 +1,1 @@
+import{Router}from'express';import{requireAuth}from'../../common/middleware/auth.middleware.js';import{asyncHandler}from'../../common/utils/async-handler.js';import{me}from'./user.controller.js';export const userRoutes=Router();userRoutes.use(requireAuth);userRoutes.get('/me',asyncHandler(me));

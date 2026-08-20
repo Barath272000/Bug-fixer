@@ -1,0 +1,2 @@
+export interface CodeSymbol{file:string;name:string;kind:string;line:number;}
+export function extractSimpleSymbols(file:string,content:string):CodeSymbol[]{const symbols:CodeSymbol[]=[];const lines=content.split('\n');for(let index=0;index<lines.length;index++){const line=lines[index];const fn=/\b(?:function|def|func|class)\s+([A-Za-z_$][A-Za-z0-9_$]*)/.exec(line);if(fn)symbols.push({file,name:fn[1],kind:'declaration',line:index+1});}return symbols;}

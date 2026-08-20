@@ -1,0 +1,1 @@
+import{z}from'zod';import{getAnalytics}from'./analytics.service.js';export async function get(request:import('express').Request,response:import('express').Response){try{response.json(await getAnalytics(request.user!.id,z.string().uuid().parse(request.query.projectId)));}catch(error){throw error;}}

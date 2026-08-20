@@ -1,0 +1,1 @@
+import{Worker}from'bullmq';import{redis}from'../config/redis.js';import fs from'node:fs/promises';export function createCleanupWorker(){return new Worker('cleanup',async(job)=>{const input=job.data as {path:string};await fs.rm(input.path,{recursive:true,force:true});return{removed:true};},{connection:redis,concurrency:2});}

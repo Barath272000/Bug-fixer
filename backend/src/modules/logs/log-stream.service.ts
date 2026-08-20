@@ -1,0 +1,1 @@
+import{RealtimeGateway}from'../../common/websocket/realtime.gateway.js';export function streamLog(gateway:RealtimeGateway,projectId:string,analysisId:string,log:unknown){gateway.publish(projectId,{type:'log.created',projectId,analysisId,payload:log});}

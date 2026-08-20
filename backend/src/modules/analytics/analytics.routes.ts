@@ -1,0 +1,1 @@
+import{Router}from'express';import{requireAuth}from'../../common/middleware/auth.middleware.js';import{asyncHandler}from'../../common/utils/async-handler.js';import{get}from'./analytics.controller.js';export const analyticsRoutes=Router();analyticsRoutes.use(requireAuth);analyticsRoutes.get('/',asyncHandler(get));
