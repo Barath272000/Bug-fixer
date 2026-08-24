@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import pinoHttp from 'pino-http';
+import { pinoHttp } from 'pino-http';
 import { env } from './config/env.js';
 import { apiRateLimit } from './common/middleware/rate-limit.middleware.js';
 import { requestIdMiddleware } from './common/middleware/request-id.middleware.js';

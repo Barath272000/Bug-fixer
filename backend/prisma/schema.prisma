@@ -1,18 +1,97 @@
-generator client { provider = "prisma-client-js" }
-datasource db { provider = "postgresql" url = env("DATABASE_URL") }
+generator client {
+  provider = "prisma-client-js"
+}
 
-enum UserRole { USER ADMIN }
-enum SourceType { ZIP GITHUB PASTE }
-enum ProjectStatus { READY ANALYZING FAILED ARCHIVED }
-enum AnalysisStatus { QUEUED RUNNING COMPLETED FAILED CANCELLED }
-enum PhaseStatus { COMPLETED RUNNING PENDING FAILED }
-enum Severity { Critical High Medium Low }
-enum BugStatus { Open InReview Fixed Closed AISuggested ApplyingFix }
-enum AIStatus { Pending Ready Applied }
-enum FixStatus { Ready Applied Superseded }
-enum ValidationStatus { IDLE RUNNING PASSED FAILED RE_ANALYZING }
-enum ProposalStatus { PENDING_PERMISSION APPROVED_AND_APPLIED REJECTED REVERTED }
-enum Provider { google openrouter groq openai anthropic deepseek custom }
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum SourceType {
+  ZIP
+  GITHUB
+  PASTE
+}
+
+enum ProjectStatus {
+  READY
+  ANALYZING
+  FAILED
+  ARCHIVED
+}
+
+enum AnalysisStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum PhaseStatus {
+  COMPLETED
+  RUNNING
+  PENDING
+  FAILED
+}
+
+enum Severity {
+  Critical
+  High
+  Medium
+  Low
+}
+
+enum BugStatus {
+  Open
+  InReview
+  Fixed
+  Closed
+  AISuggested
+  ApplyingFix
+}
+
+enum AIStatus {
+  Pending
+  Ready
+  Applied
+}
+
+enum FixStatus {
+  Ready
+  Applied
+  Superseded
+}
+
+enum ValidationStatus {
+  IDLE
+  RUNNING
+  PASSED
+  FAILED
+  RE_ANALYZING
+}
+
+enum ProposalStatus {
+  PENDING_PERMISSION
+  APPROVED_AND_APPLIED
+  REJECTED
+  REVERTED
+}
+
+enum Provider {
+  google
+  openrouter
+  groq
+  openai
+  anthropic
+  deepseek
+  custom
+}
 
 model User {
   id String @id @default(uuid())
