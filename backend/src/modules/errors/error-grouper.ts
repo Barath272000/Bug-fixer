@@ -1,0 +1,2 @@
+import {prisma} from '../../config/database.js';
+export async function groupErrors(projectId:string,analysisRunId:string){const errors=await prisma.errorRecord.findMany({where:{projectId,analysisRunId},orderBy:{createdAt:'asc'}});const groups=new Map<string,typeof errors>();for(const error of errors){const list=groups.get(error.fingerprint)??[];list.push(error);groups.set(error.fingerprint,list);}return groups;}

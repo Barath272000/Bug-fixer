@@ -1,0 +1,449 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum SourceType {
+  ZIP
+  GITHUB
+  PASTE
+}
+
+enum ProjectStatus {
+  READY
+  ANALYZING
+  FAILED
+  ARCHIVED
+}
+
+enum AnalysisStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum PhaseStatus {
+  COMPLETED
+  RUNNING
+  PENDING
+  FAILED
+}
+
+enum Severity {
+  Critical
+  High
+  Medium
+  Low
+}
+
+enum BugStatus {
+  Open
+  InReview
+  Fixed
+  Closed
+  AISuggested
+  ApplyingFix
+}
+
+enum AIStatus {
+  Pending
+  Ready
+  Applied
+}
+
+enum FixStatus {
+  Ready
+  Applied
+  Superseded
+}
+
+enum ValidationStatus {
+  IDLE
+  RUNNING
+  PASSED
+  FAILED
+  RE_ANALYZING
+}
+
+enum ProposalStatus {
+  PENDING_PERMISSION
+  APPROVED_AND_APPLIED
+  REJECTED
+  REVERTED
+}
+
+enum Provider {
+  google
+  openrouter
+  groq
+  openai
+  anthropic
+  deepseek
+  custom
+}
+
+model User {
+  id String @id @default(uuid())
+  email String @unique
+  passwordHash String
+  displayName String
+  role UserRole @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  projects Project[]
+  settings UserSetting?
+  credentials ProviderCredential[]
+  conversations CopilotConversation[]
+}
+
+model Project {
+  id String @id @default(uuid())
+  ownerId String
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name String
+  sourceType SourceType
+  status ProjectStatus @default(READY)
+  repositoryUrl String?
+  defaultBranch String?
+  currentCommit String?
+  sourcePath String?
+  workspacePath String?
+  language String?
+  framework String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  runs AnalysisRun[]
+  bugs Bug[]
+  fixes FixProposal[]
+  contextDocuments ContextDocument[]
+  workspace Workspace?
+  tests TestRun[]
+  events AnalyticsEvent[]
+  gitOperations GitOperation[]
+  setting ProjectSetting?
+  errors ErrorRecord[]
+}
+
+model AnalysisRun {
+  id String @id @default(uuid())
+  projectId String
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  status AnalysisStatus @default(QUEUED)
+  requestedBy String
+  startedAt DateTime?
+  completedAt DateTime?
+  errorMessage String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  phases PipelinePhase[]
+  logs PipelineLog[]
+  bugs Bug[]
+  tests TestRun[]
+  errors ErrorRecord[]
+  fixes FixProposal[]
+}
+
+model PipelinePhase {
+  id String @id @default(uuid())
+  analysisRunId String
+  analysisRun AnalysisRun @relation(fields: [analysisRunId], references: [id], onDelete: Cascade)
+  number Int
+  name String
+  description String
+  status PhaseStatus @default(PENDING)
+  durationMs Int?
+  validationStatus ValidationStatus @default(IDLE)
+  validationReport Json?
+  subprocesses Json?
+  startedAt DateTime?
+  completedAt DateTime?
+  logs PipelineLog[]
+  @@unique([analysisRunId, number])
+}
+
+model PipelineLog {
+  id String @id @default(uuid())
+  analysisRunId String
+  analysisRun AnalysisRun @relation(fields: [analysisRunId], references: [id], onDelete: Cascade)
+  phaseId String?
+  phase PipelinePhase? @relation(fields: [phaseId], references: [id], onDelete: SetNull)
+  timestamp DateTime @default(now())
+  level String
+  category String
+  message String
+  metadata Json?
+  @@index([analysisRunId, timestamp])
+}
+
+model ContextDocument {
+  id String @id @default(uuid())
+  projectId String
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name String
+  storagePath String
+  sizeBytes Int
+  type String
+  contentText String?
+  description String?
+  createdAt DateTime @default(now())
+  indexedAt DateTime?
+  chunks ContextChunk[]
+}
+
+model ContextChunk {
+  id String @id @default(uuid())
+  documentId String
+  document ContextDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  ordinal Int
+  content String
+  metadata Json?
+  @@unique([documentId, ordinal])
+}
+
+model Workspace {
+  id String @id @default(uuid())
+  projectId String @unique
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  rootPath String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ErrorRecord {
+  id String @id @default(uuid())
+  projectId String
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  analysisRunId String?
+  analysisRun AnalysisRun? @relation(fields: [analysisRunId], references: [id], onDelete: Cascade)
+  fingerprint String
+  name String?
+  message String
+  stackTrace String?
+  filePath String?
+  lineNumber Int?
+  source String?
+  createdAt DateTime @default(now())
+  @@index([projectId, fingerprint])
+}
+
+model Bug {
+  id String @id @default(uuid())
+  projectId String
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  analysisRunId String?
+  analysisRun AnalysisRun? @relation(fields: [analysisRunId], references: [id], onDelete: SetNull)
+  code String
+  title String
+  description String?
+  tags String[]
+  severity Severity
+  status BugStatus @default(Open)
+  aiStatus AIStatus @default(Pending)
+  language String
+  component String
+  filePath String?
+  lineNumber Int?
+  stackTrace String?
+  fingerprint String?
+  loggedDate DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  occurrences BugOccurrence[]
+  fixes FixProposal[]
+  @@unique([projectId, code])
+  @@index([projectId, status, severity])
+}
+
+model BugOccurrence {
+  id String @id @default(uuid())
+  bugId String
+  bug Bug @relation(fields: [bugId], references: [id], onDelete: Cascade)
+  errorId String?
+  lineNumber Int?
+  filePath String?
+  observedAt DateTime @default(now())
+}
+
+model FixProposal {
+  id String @id @default(uuid())
+  bugId String
+  bug Bug @relation(fields: [bugId], references: [id], onDelete: Cascade)
+  projectId String
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  analysisRunId String?
+  analysisRun AnalysisRun? @relation(fields: [analysisRunId], references: [id], onDelete: SetNull)
+  provider Provider
+  model String
+  confidence Int
+  explanation String
+  patchSummary String
+  unifiedDiff String
+  originalCode String?
+  proposedCode String?
+  affectedFiles String[]
+  linesChanged Int
+  estimatedMinutes Int
+  status FixStatus @default(Ready)
+  validationStatus ValidationStatus @default(IDLE)
+  validationReport Json?
+  createdAt DateTime @default(now())
+  appliedAt DateTime?
+  validations FixValidation[]
+}
+
+model FixValidation {
+  id String @id @default(uuid())
+  fixId String
+  fix FixProposal @relation(fields: [fixId], references: [id], onDelete: Cascade)
+  status ValidationStatus
+  testPassRate String
+  totalTests Int
+  passedTests Int
+  failedTests Int
+  regressionFound Boolean
+  recommendation String
+  summary String
+  diffSnippet String?
+  cycleCount Int @default(1)
+  createdAt DateTime @default(now())
+}
+
+model TestRun {
+  id String @id @default(uuid())
+  projectId String
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  analysisRunId String?
+  analysisRun AnalysisRun? @relation(fields: [analysisRunId], references: [id], onDelete: Cascade)
+  command String
+  status String
+  total Int @default(0)
+  passed Int @default(0)
+  failed Int @default(0)
+  skipped Int @default(0)
+  durationMs Int @default(0)
+  stdout String?
+  stderr String?
+  createdAt DateTime @default(now())
+}
+
+model CopilotConversation {
+  id String @id @default(uuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  messages CopilotMessage[]
+  proposals CodeChangeProposal[]
+}
+
+model CopilotMessage {
+  id String @id @default(uuid())
+  conversationId String
+  conversation CopilotConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender String
+  text String
+  modelUsed String?
+  provider String?
+  createdAt DateTime @default(now())
+  proposal CodeChangeProposal?
+}
+
+model CodeChangeProposal {
+  id String @id @default(uuid())
+  conversationId String
+  conversation CopilotConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  messageId String @unique
+  message CopilotMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  file String
+  title String
+  description String
+  explanation String
+  startLine Int
+  endLine Int
+  originalCode String
+  proposedCode String
+  diffSummary String
+  status ProposalStatus @default(PENDING_PERMISSION)
+  createdAt DateTime @default(now())
+}
+
+model AIModelConfig {
+  id String @id @default(uuid())
+  provider Provider
+  modelId String @unique
+  displayName String
+  contextWindow String
+  latency String?
+  description String
+  enabled Boolean @default(true)
+}
+
+model ProviderCredential {
+  id String @id @default(uuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider Provider
+  encryptedKey String
+  baseUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([userId, provider])
+}
+
+model UserSetting {
+  id String @id @default(uuid())
+  userId String @unique
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  primaryProvider Provider @default(openai)
+  primaryModel String @default("gpt-4o-mini")
+  autoRunTests Boolean @default(true)
+  minimumConfidence Int @default(85)
+  sandboxGuardrails Boolean @default(true)
+}
+
+model ProjectSetting {
+  id String @id @default(uuid())
+  projectId String @unique
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  autoRunTests Boolean @default(true)
+  minimumConfidence Int @default(85)
+  sandboxGuardrails Boolean @default(true)
+  maxCpu Float @default(2)
+  maxMemory String @default("4g")
+  timeoutSeconds Int @default(300)
+}
+
+model GitOperation {
+  id String @id @default(uuid())
+  projectId String
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  operation String
+  branch String?
+  commit String?
+  status String
+  message String?
+  createdAt DateTime @default(now())
+}
+
+model AnalyticsEvent {
+  id String @id @default(uuid())
+  projectId String?
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId String
+  name String
+  value Float?
+  metadata Json?
+  createdAt DateTime @default(now())
+  @@index([userId, name, createdAt])
+}

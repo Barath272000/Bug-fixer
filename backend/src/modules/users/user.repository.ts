@@ -1,0 +1,1 @@
+import{prisma}from'../../config/database.js';export const userRepository={findById(id:string){return prisma.user.findUnique({where:{id},select:{id:true,email:true,displayName:true,role:true,createdAt:true,updatedAt:true}});}};

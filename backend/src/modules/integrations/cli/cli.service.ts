@@ -1,0 +1,1 @@
+export function getCliConfiguration(baseUrl:string){return{baseUrl,commands:{analysis:`bugfixai analyze --api ${baseUrl}`,fix:`bugfixai fix --api ${baseUrl}`,watch:`bugfixai watch --api ${baseUrl}`}};}

@@ -1,0 +1,1 @@
+import{Queue}from'bullmq';import{redis}from'../config/redis.js';export const analysisQueue=new Queue('analysis',{connection:redis});export const sandboxQueue=new Queue('sandbox',{connection:redis});export const aiQueue=new Queue('ai',{connection:redis});export const patchQueue=new Queue('patch',{connection:redis});export const cleanupQueue=new Queue('cleanup',{connection:redis});

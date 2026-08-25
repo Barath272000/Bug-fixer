@@ -1,0 +1,1 @@
+import fs from'node:fs/promises';export async function detectDependencies(root:string){try{const pkg=JSON.parse(await fs.readFile(`${root}/package.json`,'utf8')) as {dependencies?:Record<string,string>;devDependencies?:Record<string,string>};return{runtime:pkg.dependencies??{},development:pkg.devDependencies??{}};}catch{return{runtime:{},development:{}};}}

@@ -1,0 +1,5 @@
+import {z} from 'zod';import {createAnalysis,getAnalysis,listAnalyses,cancelAnalysis} from './analysis.service.js';
+export async function create(request:import('express').Request,response:import('express').Response){try{const id=z.string().uuid().parse(request.params.id);response.status(202).json(await createAnalysis(request.user!.id,id));}catch(error){throw error;}}
+export async function get(request:import('express').Request,response:import('express').Response){try{response.json(await getAnalysis(request.user!.id,z.string().uuid().parse(request.params.id)));}catch(error){throw error;}}
+export async function list(request:import('express').Request,response:import('express').Response){try{response.json(await listAnalyses(request.user!.id,z.string().uuid().parse(request.params.projectId)));}catch(error){throw error;}}
+export async function cancel(request:import('express').Request,response:import('express').Response){try{response.json(await cancelAnalysis(request.user!.id,z.string().uuid().parse(request.params.id)));}catch(error){throw error;}}

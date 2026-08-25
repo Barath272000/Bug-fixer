@@ -1,0 +1,1 @@
+import{prisma}from'../../config/database.js';export async function createProposal(data:Parameters<typeof prisma.codeChangeProposal.create>[0]['data']){return prisma.codeChangeProposal.create({data});}

@@ -1,0 +1,1 @@
+import{env}from'../../config/env.js';export const sandboxLimits={cpu:env.SANDBOX_CPU_LIMIT,memory:env.SANDBOX_MEMORY_LIMIT,pids:env.SANDBOX_PIDS_LIMIT,timeoutMs:env.SANDBOX_TIMEOUT_MS,network:env.SANDBOX_NETWORK_MODE};
