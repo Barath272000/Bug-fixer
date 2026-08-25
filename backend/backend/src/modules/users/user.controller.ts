@@ -1,0 +1,1 @@
+import{getUser}from'./user.service.js';export async function me(request:import('express').Request,response:import('express').Response){try{response.json({user:await getUser(request.user!.id)});}catch(error){throw error;}}

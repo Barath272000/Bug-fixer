@@ -1,0 +1,2 @@
+import {Router} from 'express';import {requireAuth} from '../../common/middleware/auth.middleware.js';import {asyncHandler} from '../../common/utils/async-handler.js';import {list,get,create,remove} from './project.controller.js';
+export const projectRoutes=Router();projectRoutes.use(requireAuth);projectRoutes.get('/',asyncHandler(list));projectRoutes.post('/',asyncHandler(create));projectRoutes.get('/:id',asyncHandler(get));projectRoutes.delete('/:id',asyncHandler(remove));

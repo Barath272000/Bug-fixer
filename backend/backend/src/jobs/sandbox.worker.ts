@@ -1,0 +1,1 @@
+import{Worker}from'bullmq';import{redis}from'../config/redis.js';import{runSandbox}from'../modules/sandbox/sandbox.service.js';export function createSandboxWorker(){return new Worker('sandbox',async(job)=>{const input=job.data as {workspace:string;command:string};return runSandbox(input.workspace,input.command);},{connection:redis,concurrency:2});}

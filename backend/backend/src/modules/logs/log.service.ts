@@ -1,0 +1,1 @@
+import{prisma}from'../../config/database.js';export async function listLogs(userId:string,analysisId:string){return prisma.pipelineLog.findMany({where:{analysisRunId:analysisId,analysisRun:{project:{ownerId:userId}}},orderBy:{timestamp:'asc'},take:5000});}

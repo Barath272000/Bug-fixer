@@ -1,0 +1,4 @@
+import{z}from'zod';import{tree,readFile,writeFile}from'./workspace.service.js';
+export async function getTree(request:import('express').Request,response:import('express').Response){try{response.json(await tree(request.user!.id,z.string().uuid().parse(request.params.id)));}catch(error){throw error;}}
+export async function getFile(request:import('express').Request,response:import('express').Response){try{response.json(await readFile(request.user!.id,z.string().uuid().parse(request.params.id),z.string().min(1).parse(request.query.path)));}catch(error){throw error;}}
+export async function putFile(request:import('express').Request,response:import('express').Response){try{const input=z.object({path:z.string().min(1),content:z.string()}).parse(request.body);response.json(await writeFile(request.user!.id,z.string().uuid().parse(request.params.id),input.path,input.content));}catch(error){throw error;}}
