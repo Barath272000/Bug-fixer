@@ -23,6 +23,7 @@ import { uploadsRoutes } from './modules/uploads/upload.routes.js';
 export function createApp(): express.Express {
   const app = express();
   app.disable('x-powered-by');
+  app.set('trust proxy', 1);
   app.use(helmet({ crossOriginResourcePolicy: false }));
   app.use(cors({ origin: env.CORS_ORIGIN.split(',').map((value) => value.trim()), credentials: true }));
   app.use(express.json({ limit: '2mb' }));
