@@ -5,7 +5,7 @@ import { Bug as BugType, SeverityLevel } from '../types';
 interface LogBugModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddBug: (bug: BugType) => void;
+  onAddBug: (bug: BugType) => void | Promise<void>;
 }
 
 export const LogBugModal: React.FC<LogBugModalProps> = ({ isOpen, onClose, onAddBug }) => {

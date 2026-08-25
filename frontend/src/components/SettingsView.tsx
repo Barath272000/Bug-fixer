@@ -1,15 +1,84 @@
-import React, { useState } from 'react';
-import { Settings, Cpu, Shield, Check } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Settings, Cpu, Shield, Check, Loader2, AlertCircle } from 'lucide-react';
+import { apiRequest, ApiError } from '../api/client';
+
+// UI model choice <-> backend (provider, model) pair.
+const MODEL_OPTIONS = [
+  { id: 'gpt-4o', provider: 'openai', model: 'gpt-4o', name: 'GPT-4o', providerLabel: 'OpenAI (Omni)', desc: 'Best for multi-file AST context & high complexity' },
+  { id: 'claude-3-5', provider: 'anthropic', model: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', providerLabel: 'Anthropic', desc: 'Superior code syntax precision & refactoring' },
+  { id: 'gemini-1-5', provider: 'google', model: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', providerLabel: 'Google DeepMind', desc: '1M+ token context window for large monorepos' },
+] as const;
+
+interface UserSetting {
+  primaryProvider: string;
+  primaryModel: string;
+  autoRunTests: boolean;
+  minimumConfidence: number;
+  sandboxGuardrails: boolean;
+}
+
+interface SettingsResponse {
+  settings: UserSetting;
+  credentials: { provider: string; baseUrl: string | null; createdAt: string }[];
+}
+
+function modelIdFor(provider: string, model: string): string {
+  const match = MODEL_OPTIONS.find((m) => m.provider === provider && m.model === model);
+  return match?.id ?? MODEL_OPTIONS[0].id;
+}
 
 export const SettingsView: React.FC = () => {
-  const [selectedModel, setSelectedModel] = useState('gpt-4o');
-  const [autoRunTests, setAutoRunTests] = useState(true);
-  const [minConfidence, setMinConfidence] = useState(85);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+  const [selectedModel, setSelectedModel] = useState<string>('gpt-4o');
+  const [autoRunTests, setAutoRunTests] = useState(true);
+  const [minConfidence, setMinConfidence] = useState(85);
+  const [sandboxGuardrails, setSandboxGuardrails] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await apiRequest<SettingsResponse>('/settings');
+        if (cancelled) return;
+        setSelectedModel(modelIdFor(data.settings.primaryProvider, data.settings.primaryModel));
+        setAutoRunTests(data.settings.autoRunTests);
+        setMinConfidence(data.settings.minimumConfidence);
+        setSandboxGuardrails(data.settings.sandboxGuardrails);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof ApiError ? err.message : 'Failed to load settings');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleSave = async () => {
+    const chosen = MODEL_OPTIONS.find((m) => m.id === selectedModel) ?? MODEL_OPTIONS[0];
+    setSaving(true);
+    setError(null);
+    try {
+      await apiRequest('/settings', {
+        method: 'PATCH',
+        body: {
+          primaryProvider: chosen.provider,
+          primaryModel: chosen.model,
+          autoRunTests,
+          minimumConfidence: minConfidence,
+          sandboxGuardrails,
+        },
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to save settings');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -33,14 +102,27 @@ export const SettingsView: React.FC = () => {
 
         <button
           onClick={handleSave}
-          className="flex items-center gap-2 px-3.5 py-2 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium shadow-sm transition-colors cursor-pointer"
+          disabled={loading || saving}
+          className="flex items-center gap-2 px-3.5 py-2 rounded-md bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-medium shadow-sm transition-colors cursor-pointer"
         >
-          <Check className="w-4 h-4" />
-          <span>{saved ? 'Settings Saved' : 'Save Changes'}</span>
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+          <span>{saving ? 'Saving...' : saved ? 'Settings Saved' : 'Save Changes'}</span>
         </button>
       </div>
 
-      {/* Settings Sections */}
+      {error && (
+        <div className="max-w-3xl flex items-center gap-2 px-3.5 py-2.5 rounded-md bg-red-500/10 border border-red-500/30 text-red-300 text-xs">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="max-w-3xl flex items-center gap-2 text-gray-400 text-xs">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span>Loading settings...</span>
+        </div>
+      ) : (
       <div className="max-w-3xl space-y-6">
         
         {/* Model Selection */}
@@ -51,11 +133,7 @@ export const SettingsView: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {[
-              { id: 'gpt-4o', name: 'GPT-4o', provider: 'OpenAI (Omni)', desc: 'Best for multi-file AST context & high complexity' },
-              { id: 'claude-3-5', name: 'Claude 3.5 Sonnet', provider: 'Anthropic', desc: 'Superior code syntax precision & refactoring' },
-              { id: 'gemini-1-5', name: 'Gemini 1.5 Pro', provider: 'Google DeepMind', desc: '1M+ token context window for large monorepos' },
-            ].map(m => (
+            {MODEL_OPTIONS.map(m => (
               <div
                 key={m.id}
                 onClick={() => setSelectedModel(m.id)}
@@ -69,7 +147,7 @@ export const SettingsView: React.FC = () => {
                   <span className="font-bold text-gray-200 text-xs">{m.name}</span>
                   {selectedModel === m.id && <span className="w-2 h-2 rounded-full bg-indigo-400" />}
                 </div>
-                <div className="text-[11px] text-indigo-300 mt-0.5">{m.provider}</div>
+                <div className="text-[11px] text-indigo-300 mt-0.5">{m.providerLabel}</div>
                 <p className="text-[11px] text-gray-400 mt-2">{m.desc}</p>
               </div>
             ))}
@@ -97,6 +175,19 @@ export const SettingsView: React.FC = () => {
               />
             </div>
 
+            <div className="flex items-center justify-between pt-2 border-t border-[#30363D]">
+              <div>
+                <div className="font-semibold text-gray-200">Enforce sandbox guardrails</div>
+                <div className="text-gray-400 text-[11px]">Runs untrusted code with network disabled and resource limits</div>
+              </div>
+              <input
+                type="checkbox"
+                checked={sandboxGuardrails}
+                onChange={(e) => setSandboxGuardrails(e.target.checked)}
+                className="w-4 h-4 rounded text-indigo-600 bg-[#0B0E14] border-[#30363D]"
+              />
+            </div>
+
             <div className="space-y-2 pt-2 border-t border-[#30363D]">
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-gray-200">Minimum AI Confidence Score Required</span>
@@ -115,6 +206,7 @@ export const SettingsView: React.FC = () => {
         </div>
 
       </div>
+      )}
 
     </div>
   );

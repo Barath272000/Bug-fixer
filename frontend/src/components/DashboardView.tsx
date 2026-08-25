@@ -24,213 +24,37 @@ import {
   BookOpen,
   FileCheck
 } from 'lucide-react';
-import { pipelinePhases as initialPipelinePhases, initialLogs } from '../data/mockData';
+import { pipelinePhases as initialPipelinePhases } from '../data/mockData';
 import { LogLine, PipelinePhase, ContextDoc } from '../types';
 import { LiveLogTable, ExtendedLogLine } from './LiveLogTable';
 import { ContextDocsUploader } from './ContextDocsUploader';
 import { PhaseInspectorModal } from './PhaseInspectorModal';
+import { apiRequest, uploadProjectArchive, getRealtimeSocketUrl, ApiError } from '../api/client';
 
-const extendedInitialLogs: ExtendedLogLine[] = [
-  { 
-    id: '1', 
-    timestamp: '10:31:04.120', 
-    level: 'INFO', 
-    category: 'setup', 
-    phaseName: 'Project Input',
-    durationMs: 18,
-    message: 'Validating project ZIP archive: fastapi-gateway-v1.4.zip (4.8MB)...',
-    details: 'Archive SHA256: 7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069\nValid zip header confirmed. 34 files, 6 directories found.'
-  },
-  { 
-    id: '1-ctx', 
-    timestamp: '10:31:04.210', 
-    level: 'PASS', 
-    category: 'setup', 
-    phaseName: 'Project Input',
-    durationMs: 14,
-    message: 'Loaded context documentation: openapi-spec.yaml (18.4 KB) & architecture rules.',
-    details: 'Grounding AST engine with OpenAPI 3.0.3 endpoints (/api/v1/auth/user) and strict JWT HMAC-SHA256 standards.'
-  },
-  { 
-    id: '2', 
-    timestamp: '10:31:04.380', 
-    level: 'PASS', 
-    category: 'setup', 
-    phaseName: 'Project Setup',
-    durationMs: 42,
-    message: 'Tech stack detected: Python 3.11.6, FastAPI 0.104.1, SQLAlchemy 2.0.23, Redis 5.0.1' 
-  },
-  { 
-    id: '3', 
-    timestamp: '10:31:05.010', 
-    level: 'INFO', 
-    category: 'setup', 
-    phaseName: 'Project Setup',
-    durationMs: 24,
-    message: 'AST tree construction initialized with tree-sitter-python & context doc bindings' 
-  },
-  { 
-    id: '4', 
-    timestamp: '10:31:06.220', 
-    level: 'INFO', 
-    category: 'docker', 
-    phaseName: 'Isolated Environment',
-    durationMs: 140,
-    message: 'Spinning up isolated Docker container: python:3.11-slim (2 vCPU, 4096MB memory)' 
-  },
-  { 
-    id: '5', 
-    timestamp: '10:31:18.910', 
-    level: 'PASS', 
-    category: 'docker', 
-    phaseName: 'Isolated Environment',
-    durationMs: 820,
-    message: 'Container spawned with cgroup isolation & seccomp profile [PID 4092]' 
-  },
-  { 
-    id: '6', 
-    timestamp: '10:31:19.450', 
-    level: 'INFO', 
-    category: 'install', 
-    phaseName: 'Install & Build',
-    durationMs: 310,
-    message: 'pip install -r requirements.txt --no-cache-dir --disable-pip-version-check' 
-  },
-  { 
-    id: '7', 
-    timestamp: '10:31:44.200', 
-    level: 'PASS', 
-    category: 'install', 
-    phaseName: 'Install & Build',
-    durationMs: 25300,
-    message: '47 packages installed successfully into virtualenv' 
-  },
-  { 
-    id: '8', 
-    timestamp: '10:31:45.030', 
-    level: 'INFO', 
-    category: 'lint', 
-    phaseName: 'Install & Build',
-    durationMs: 85,
-    message: 'Running AST static linter flake8 on 23 source files...' 
-  },
-  { 
-    id: '9', 
-    timestamp: '10:31:47.110', 
-    level: 'WARN', 
-    category: 'lint', 
-    phaseName: 'Install & Build',
-    durationMs: 12,
-    message: 'app/routers/auth.py:42: F841 local variable \'token_claims\' is assigned to but never used',
-    details: 'Line 42 in src/app/routers/auth.py:\ntoken_claims = decode_header(token)\nRecommendation: Remove unused variable or pass to validator.'
-  },
-  { 
-    id: '10', 
-    timestamp: '10:31:48.040', 
-    level: 'WARN', 
-    category: 'lint', 
-    phaseName: 'Install & Build',
-    durationMs: 14,
-    message: 'app/services/rate_limiter.py:18: E501 line exceeds 79 character standard (88 chars)' 
-  },
-  { 
-    id: '11', 
-    timestamp: '10:31:49.200', 
-    level: 'PASS', 
-    category: 'lint', 
-    phaseName: 'Install & Build',
-    durationMs: 95,
-    message: 'Lint validation completed with 2 non-blocking warnings' 
-  },
-  { 
-    id: '12', 
-    timestamp: '10:31:50.000', 
-    level: 'INFO', 
-    category: 'test', 
-    phaseName: 'Run & Test',
-    durationMs: 210,
-    message: 'pytest -v --tb=short tests/ (executing 31 test suites)' 
-  },
-  { 
-    id: '13', 
-    timestamp: '10:31:52.400', 
-    level: 'PASS', 
-    category: 'test', 
-    phaseName: 'Run & Test',
-    durationMs: 340,
-    message: 'tests/test_health.py::test_health_endpoint PASSED [ 3%]' 
-  },
-  { 
-    id: '14', 
-    timestamp: '10:31:54.100', 
-    level: 'PASS', 
-    category: 'test', 
-    phaseName: 'Run & Test',
-    durationMs: 410,
-    message: 'tests/test_db.py::test_db_connection PASSED [ 6%]' 
-  },
-  { 
-    id: '15', 
-    timestamp: '10:31:57.600', 
-    level: 'ERROR', 
-    category: 'test', 
-    phaseName: 'Run & Test',
-    durationMs: 82,
-    message: 'tests/test_auth.py::test_jwt_empty_sub FAILED [ 9%]',
-    details: 'Traceback (most recent call last):\n  File "tests/test_auth.py", line 18, in test_jwt_empty_sub\n    response = client.get("/api/v1/profile", headers={"Authorization": "Bearer malformed_token"})\n  File "src/app/routers/auth.py", line 76, in authenticate_user\n    sub = payload.get("sub")\nAttributeError: \'NoneType\' object has no attribute \'get\' at auth.py:76',
-    codeSnippet: '@@ -76,2 +76,6 @@\n- sub = payload.get("sub")\n+ if not payload or not isinstance(payload, dict):\n+     raise HTTPException(status_code=401, detail="Invalid token payload")\n+ sub = payload.get("sub")'
-  },
-  { 
-    id: '16', 
-    timestamp: '10:31:58.200', 
-    level: 'ERROR', 
-    category: 'test', 
-    phaseName: 'Run & Test',
-    durationMs: 45,
-    message: 'Unhandled Exception: AttributeError at src/app/routers/auth.py:76 on null payload decode',
-    details: 'Variable inspection:\n  payload = None (type: NoneType)\n  request.headers["Authorization"] = "Bearer eyJhbGciOi..."'
-  },
-  { 
-    id: '17', 
-    timestamp: '10:32:01.400', 
-    level: 'ERROR', 
-    category: 'test', 
-    phaseName: 'Run & Test',
-    durationMs: 110,
-    message: 'tests/test_rate_limit.py::test_cluster_reset FAILED [ 12%]',
-    details: 'Redis cluster TTL not resetting token bucket per-minute counter on key migration.\nError: KeyExpirationMissing: TTL not propagated across Redis cluster slots at src/services/rate_limiter.ts:48:12',
-    codeSnippet: '@@ -48,2 +48,6 @@\n- await redis.incr(key);\n- await redis.expire(key, 60);\n+ const luaScript = `local c = redis.call(\'incr\', KEYS[1]) if tonumber(c) == 1 then redis.call(\'expire\', KEYS[1], ARGV[1]) end return c`;\n+ return await redis.eval(luaScript, 1, key, 60);'
-  },
-  { 
-    id: '18', 
-    timestamp: '10:32:03.150', 
-    level: 'INFO', 
-    category: 'ai-agent', 
-    phaseName: 'Error Collection',
-    durationMs: 50,
-    message: 'Capturing failed stack frames, AST call graph & environment metadata...' 
-  },
-  { 
-    id: '19', 
-    timestamp: '10:32:05.400', 
-    level: 'INFO', 
-    category: 'ai-agent', 
-    phaseName: 'AI Root Cause Analysis',
-    durationMs: 1200,
-    message: 'Deep Reasoning LLM dispatched: Analyzing root cause and cross-referencing openapi-spec.yaml...',
-    details: 'Prompt tokens: 2,410 | Model: GPT-4-Turbo | Temperature: 0.1\nContext grounding: Verified against openapi-spec.yaml contract requirement for HTTP 401 handling.'
-  },
-  { 
-    id: '20', 
-    timestamp: '10:32:08.800', 
-    level: 'PASS', 
-    category: 'ai-agent', 
-    phaseName: 'AI Patch Generation',
-    durationMs: 980,
-    message: 'Generated verified unified diff patch for BUG-001 compliant with OpenAPI spec (94% confidence)',
-    codeSnippet: '@@ -76,3 +76,7 @@\n- sub = payload.get("sub")\n- user = await get_user_by_id(sub)\n+ if not payload or not isinstance(payload, dict):\n+     raise HTTPException(status_code=401, detail="Invalid token payload")\n+ sub = payload.get("sub")\n+ user = await get_user_by_id(sub)'
+const pendingPipelinePhases: PipelinePhase[] = initialPipelinePhases.map((p) => ({
+  ...p,
+  status: 'pending',
+  duration: undefined,
+  subprocesses: p.subprocesses?.map((sp) => ({ ...sp, completed: false, status: 'pending' })),
+}));
+
+interface BackendPhase {
+  number: number;
+  name: string;
+  description: string;
+  status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+  durationMs?: number | null;
+}
+
+function backendPhaseStatus(status: BackendPhase['status']): PipelinePhase['status'] {
+  switch (status) {
+    case 'RUNNING': return 'running';
+    case 'COMPLETED': return 'completed';
+    case 'FAILED': return 'failed';
+    default: return 'pending';
   }
-];
+}
+
 
 export const DashboardView: React.FC = () => {
   const [activeUploadTab, setActiveUploadTab] = useState<'zip' | 'github' | 'paste'>('zip');
@@ -238,10 +62,16 @@ export const DashboardView: React.FC = () => {
   const [activeRightTab, setActiveRightTab] = useState<'pipeline' | 'logs'>('pipeline');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [progress, setProgress] = useState(65);
-  const [phases, setPhases] = useState<PipelinePhase[]>(initialPipelinePhases);
-  const [logs, setLogs] = useState<ExtendedLogLine[]>(extendedInitialLogs);
-  const [uploadedFileName, setUploadedFileName] = useState<string | null>('api-gateway-v1.4.zip');
-  const [currentExecutingPhase, setCurrentExecutingPhase] = useState<string>('Run & Test');
+  const [phases, setPhases] = useState<PipelinePhase[]>(pendingPipelinePhases);
+  const [logs, setLogs] = useState<ExtendedLogLine[]>([]);
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [currentExecutingPhase, setCurrentExecutingPhase] = useState<string>('');
+  const [projectId, setProjectId] = useState<string | null>(null);
+  const [analysisId, setAnalysisId] = useState<string | null>(null);
+  const [pipelineError, setPipelineError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const socketRef = useRef<WebSocket | null>(null);
 
   // Optional Context Docs State
   const [contextDocs, setContextDocs] = useState<ContextDoc[]>([
@@ -272,6 +102,12 @@ paths:
   const [customInstructions, setCustomInstructions] = useState<string>('Enforce strict null checks for JWT tokens; do not mutate existing API contracts.');
   const [selectedPhaseForInspection, setSelectedPhaseForInspection] = useState<PipelinePhase | null>(null);
   const [isPhaseInspectorOpen, setIsPhaseInspectorOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    return () => {
+      socketRef.current?.close();
+    };
+  }, []);
 
   const handleOpenPhaseInspector = (phase: PipelinePhase) => {
     setSelectedPhaseForInspection(phase);
@@ -310,198 +146,92 @@ paths:
     setContextDocs([]);
   };
 
-  const handleStartAnalysis = () => {
-    if (isAnalyzing) return;
-    setIsAnalyzing(true);
-    setProgress(5);
-    setCurrentExecutingPhase('Project Input');
+  const connectRealtimeSocket = (pid: string) => {
+    const socket = new WebSocket(getRealtimeSocketUrl(pid));
+    socketRef.current = socket;
 
-    // Reset phases to running flow
-    setPhases(prev => prev.map((p, idx) => {
-      if (idx === 0) return { ...p, status: 'running', duration: undefined };
-      return { ...p, status: 'pending', duration: undefined };
-    }));
+    socket.onmessage = (event) => {
+      let data: { type: string; payload: unknown };
+      try {
+        data = JSON.parse(event.data);
+      } catch {
+        return;
+      }
 
-    const now = new Date();
-    const timeStr = now.toTimeString().split(' ')[0] + '.' + String(now.getMilliseconds()).padStart(3, '0');
-
-    // Add initial log
-    const startLog: ExtendedLogLine = {
-      id: String(Date.now()),
-      timestamp: timeStr,
-      level: 'INFO',
-      category: 'ai-engine',
-      phaseName: 'Project Input',
-      durationMs: 12,
-      message: `Initiating diagnostic pipeline for project [${projectName}] with ${contextDocs.length} context doc(s)...`
+      if (data.type === 'phase.started' || data.type === 'phase.progress') {
+        const phase = data.payload as BackendPhase;
+        setCurrentExecutingPhase(phase.name);
+        setPhases(prev => prev.map(p => p.id === phase.number ? {
+          ...p,
+          status: backendPhaseStatus(phase.status),
+          duration: phase.durationMs ? `${(phase.durationMs / 1000).toFixed(1)}s` : p.duration,
+        } : p));
+        setProgress(Math.round((phase.number / pendingPipelinePhases.length) * 100));
+      } else if (data.type === 'log.created') {
+        const log = data.payload as { id: string; timestamp: string; level: string; category: string; message: string };
+        setLogs(prev => [...prev, {
+          id: log.id,
+          timestamp: new Date(log.timestamp).toLocaleTimeString('en-US', { hour12: false }) + '.' + String(new Date(log.timestamp).getMilliseconds()).padStart(3, '0'),
+          level: (log.level as ExtendedLogLine['level']) ?? 'INFO',
+          category: log.category,
+          message: log.message,
+        }]);
+      } else if (data.type === 'analysis.completed') {
+        setIsAnalyzing(false);
+        setProgress(100);
+        socket.close();
+      } else if (data.type === 'analysis.failed') {
+        const payload = data.payload as { message?: string };
+        setIsAnalyzing(false);
+        setPipelineError(payload?.message ?? 'Analysis pipeline failed');
+        socket.close();
+      }
     };
 
-    const initialLogsToSet = [startLog];
+    socket.onerror = () => {
+      setPipelineError('Lost connection to the realtime log stream.');
+    };
+  };
 
-    if (contextDocs.length > 0) {
-      initialLogsToSet.push({
-        id: `${Date.now()}-ctx`,
-        timestamp: timeStr,
-        level: 'PASS',
-        category: 'setup',
-        phaseName: 'Project Input',
-        durationMs: 18,
-        message: `Context docs bound: ${contextDocs.map(d => d.name).join(', ')}`,
-        details: `Loaded ${contextDocs.length} grounding documents. Rules: ${customInstructions || 'Default zero-regression constraints.'}`
-      });
+  const handleStartAnalysis = async () => {
+    if (isAnalyzing) return;
+    if (!uploadedFile) {
+      setPipelineError('Choose a project ZIP archive before starting the analysis.');
+      return;
     }
 
-    setLogs(initialLogsToSet);
+    setPipelineError(null);
+    setIsAnalyzing(true);
+    setProgress(0);
+    setLogs([]);
+    setPhases(pendingPipelinePhases);
+    setCurrentExecutingPhase('Project Input');
 
-    // Multi-phase execution simulation covering all 8 phases and sub-processes
-    const steps = [
-      {
-        phaseId: 1,
-        phaseName: 'Project Input',
-        progress: 12,
-        delay: 600,
-        logs: [
-          { level: 'INFO' as const, category: 'setup', message: `Archive validation: Checking file size & archive quota (4.82MB / 500MB max limit)...` },
-          { level: 'PASS' as const, category: 'security', message: `Malicious file scan: 0 rogue binaries (.exe/.dll/.so) detected. Clean sandbox.` },
-          { level: 'PASS' as const, category: 'security', message: `Zip Slip & Path traversal defense: Canonical root strictly enforced. 0 relative climbs.` },
-          { level: 'PASS' as const, category: 'setup', message: `Archive validated for ${projectName}. 34 source files decompressed cleanly.` }
-        ]
-      },
-      {
-        phaseId: 2,
-        phaseName: 'Project Setup',
-        progress: 24,
-        delay: 1300,
-        logs: [
-          { level: 'INFO' as const, category: 'setup', message: 'Extracting project analysis directory and building AST symbol table...' },
-          { level: 'PASS' as const, category: 'setup', message: 'Detecting language (Python 3.11), framework (FastAPI 0.104), and dependencies (SQLAlchemy, Redis)...' },
-          { level: 'PASS' as const, category: 'setup', message: 'Entry point detected at src/main.py:app. Context contracts verified.' }
-        ]
-      },
-      {
-        phaseId: 3,
-        phaseName: 'Isolated Environment',
-        progress: 36,
-        delay: 2100,
-        logs: [
-          { level: 'INFO' as const, category: 'docker', message: 'Creating isolated Docker container sandbox with secure cgroup namespaces...' },
-          { level: 'PASS' as const, category: 'docker', message: 'Mounted workspace to /sandbox/app with resource limits: 2.0 vCPU, 4096MB RAM, read-only system root.' }
-        ]
-      },
-      {
-        phaseId: 4,
-        phaseName: 'Install & Build',
-        progress: 48,
-        delay: 3000,
-        logs: [
-          { level: 'INFO' as const, category: 'install', message: 'Installing 47 project dependencies in isolated virtualenv...' },
-          { level: 'PASS' as const, category: 'install', message: 'Compilation check: AST parsed cleanly across all 34 source files.' },
-          { level: 'WARN' as const, category: 'lint', message: 'Capturing build warnings: 1 unused variable in auth.py:42 (non-fatal).' }
-        ]
-      },
-      {
-        phaseId: 5,
-        phaseName: 'Run & Test',
-        progress: 62,
-        delay: 4100,
-        logs: [
-          { level: 'INFO' as const, category: 'test', message: 'Starting application server on 0.0.0.0:8000 and executing test harness...' },
-          { level: 'PASS' as const, category: 'test', message: 'Unit & Integration tests: 30 passed, 1 failed. Capturing runtime behavior.' },
-          { 
-            level: 'ERROR' as const, 
-            category: 'test', 
-            message: 'pytest tests/test_auth.py: AttributeError at auth.py:76 on null bearer token sub claim',
-            details: 'Traceback:\n  File "src/app/routers/auth.py", line 76, in authenticate_user\n    sub = payload.get("sub")\nAttributeError: \'NoneType\' object has no attribute \'get\'',
-            codeSnippet: '@@ -76,2 +76,5 @@\n- sub = payload.get("sub")\n+ if not payload:\n+     raise HTTPException(status_code=401, detail="Invalid token")\n+ sub = payload.get("sub")'
-          }
-        ]
-      },
-      {
-        phaseId: 6,
-        phaseName: 'Error Collection',
-        progress: 74,
-        delay: 5200,
-        logs: [
-          { level: 'INFO' as const, category: 'ai-agent', message: 'Collecting stack traces, container stderr logs, and non-zero exit codes...' },
-          { level: 'PASS' as const, category: 'ai-agent', message: 'Isolated 1 critical defect [BUG-001] in auth module call graph.' }
-        ]
-      },
-      {
-        phaseId: 7,
-        phaseName: 'AI Root Cause Analysis',
-        progress: 88,
-        delay: 6400,
-        logs: [
-          { 
-            level: 'INFO' as const, 
-            category: 'ai-agent', 
-            message: `Locating responsible code & cross-referencing context contracts (${contextDocs.map(d => d.name).join(', ') || 'standard rules'})...`,
-            details: `Root Cause: Null token payload not caught before sub dict access. Impact: HTTP 500 instead of HTTP 401 Unauthorized.`
-          }
-        ]
-      },
-      {
-        phaseId: 8,
-        phaseName: 'AI Patch & Validation Loop',
-        progress: 100,
-        delay: 7600,
-        logs: [
-          { level: 'INFO' as const, category: 'ai-agent', message: 'Generating verified fix & applying patch to sandbox environment overlay...' },
-          { level: 'PASS' as const, category: 'ai-agent', message: 'Re-running test validation suite: 31/31 PASSED (100%). Zero regressions found.' },
-          { 
-            level: 'PASS' as const, 
-            category: 'ai-agent', 
-            message: 'Final Audit Report generated: Patch validated and ready for export.',
-            codeSnippet: '@@ -76,3 +76,7 @@\n- sub = payload.get("sub")\n- user = await get_user_by_id(sub)\n+ if not payload or not isinstance(payload, dict):\n+     raise HTTPException(status_code=401, detail="Invalid token payload")\n+ sub = payload.get("sub")\n+ user = await get_user_by_id(sub)'
-          }
-        ]
-      }
-    ];
+    try {
+      // 1. Create the project record
+      const project = await apiRequest<{ id: string }>('/projects', {
+        method: 'POST',
+        body: { name: projectName, sourceType: 'ZIP' },
+      });
+      setProjectId(project.id);
 
-    steps.forEach((step, index) => {
-      setTimeout(() => {
-        setCurrentExecutingPhase(step.phaseName);
-        setProgress(step.progress);
+      // 2. Upload the archive
+      await uploadProjectArchive(project.id, uploadedFile);
 
-        // Update pipeline phases statuses
-        setPhases(prev => prev.map((p, idx) => {
-          if (p.id < step.phaseId) {
-            return { ...p, status: 'completed', duration: `${(0.4 + idx * 0.3).toFixed(1)}s` };
-          } else if (p.id === step.phaseId) {
-            return { 
-              ...p, 
-              status: index === steps.length - 1 ? 'completed' : 'running',
-              duration: index === steps.length - 1 ? '1.2s' : undefined
-            };
-          } else {
-            return { ...p, status: 'pending' };
-          }
-        }));
+      // 3. Kick off the analysis pipeline (runs async on the backend via BullMQ)
+      const run = await apiRequest<{ id: string }>(`/analysis/projects/${project.id}/run`, {
+        method: 'POST',
+      });
+      setAnalysisId(run.id);
 
-        // Append logs
-        const currentNow = new Date();
-        const currentTimestamp = currentNow.toTimeString().split(' ')[0] + '.' + String(currentNow.getMilliseconds()).padStart(3, '0');
-
-        const newLogEntries: ExtendedLogLine[] = step.logs.map((l, lIdx) => ({
-          id: `${Date.now()}-${step.phaseId}-${lIdx}`,
-          timestamp: currentTimestamp,
-          level: l.level,
-          category: l.category,
-          phaseName: step.phaseName,
-          durationMs: Math.floor(Math.random() * 120) + 15,
-          message: l.message,
-          details: (l as any).details,
-          codeSnippet: (l as any).codeSnippet
-        }));
-
-        setLogs(prev => [...prev, ...newLogEntries]);
-
-        if (index === steps.length - 1) {
-          setIsAnalyzing(false);
-        }
-      }, step.delay);
-    });
+      // 4. Stream phase/log updates over the realtime WebSocket gateway
+      connectRealtimeSocket(project.id);
+    } catch (error) {
+      setIsAnalyzing(false);
+      setPipelineError(error instanceof ApiError ? error.message : 'Failed to start the analysis pipeline.');
+    }
   };
+
 
   const handleClearLogs = () => {
     setLogs([]);
@@ -680,9 +410,29 @@ paths:
               <div className="space-y-4">
                 
                 {/* 1. Primary ZIP Dropzone */}
-                <div 
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".zip,.tar,.gz,.tgz"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] ?? null;
+                    setUploadedFile(file);
+                    setUploadedFileName(file?.name ?? null);
+                    setPipelineError(null);
+                  }}
+                />
+                <div
                   className="border-2 border-dashed border-[#30363D] hover:border-indigo-500/60 rounded-lg p-5 flex flex-col items-center justify-center text-center cursor-pointer bg-[#161B22]/50 hover:bg-[#161B22] transition-colors group"
-                  onClick={() => setUploadedFileName('fastapi-gateway-master.zip')}
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const file = e.dataTransfer.files?.[0] ?? null;
+                    setUploadedFile(file);
+                    setUploadedFileName(file?.name ?? null);
+                    setPipelineError(null);
+                  }}
                 >
                   <div className="w-10 h-10 rounded-md bg-[#21262D] group-hover:bg-indigo-950/40 border border-[#30363D] group-hover:border-indigo-500/40 flex items-center justify-center text-indigo-400 mb-2 transition-colors">
                     <UploadCloud className="w-5 h-5" />
@@ -708,6 +458,13 @@ paths:
                     </div>
                   )}
                 </div>
+
+                {pipelineError && (
+                  <div className="text-[11px] text-red-300 bg-red-950/40 border border-red-500/30 px-3 py-2 rounded flex items-center gap-1.5">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{pipelineError}</span>
+                  </div>
+                )}
 
                 {/* 2. OPTIONAL CONTEXT DOCS UPLOADER UNDER THE ZIP UPLOAD */}
                 <ContextDocsUploader
@@ -737,7 +494,7 @@ paths:
                 <button
                   id="start-ai-analysis-btn"
                   onClick={handleStartAnalysis}
-                  disabled={isAnalyzing}
+                  disabled={isAnalyzing || !uploadedFile}
                   className="w-full flex items-center justify-center gap-2 py-2.5 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-colors shadow-sm cursor-pointer disabled:opacity-60"
                 >
                   <Zap className={`w-3.5 h-3.5 ${isAnalyzing ? 'animate-spin' : ''}`} />
@@ -847,7 +604,7 @@ paths:
                       )}
                     </h2>
                     <p className="text-[11px] text-gray-400 font-mono mt-0.5">
-                      {projectName} · run-005 · active phase: <span className="text-indigo-300 font-semibold">{currentExecutingPhase}</span>
+                      {projectName}{projectId ? ` (${projectId.slice(0, 8)})` : ''}{analysisId ? ` · run-${analysisId.slice(0, 8)}` : ''}{currentExecutingPhase ? <> · active phase: <span className="text-indigo-300 font-semibold">{currentExecutingPhase}</span></> : null}
                     </p>
                   </div>
 

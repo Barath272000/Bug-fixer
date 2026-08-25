@@ -8,11 +8,47 @@
  * once the login screen exists — search this file for "DEV_TOKEN".
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000';
 const API_PREFIX = '/api/v1';
 
 // TODO: replace with the token printed by `npm run seed:dev-user` (backend/prisma/seed-dev-user.ts)
-const DEV_TOKEN = 'const DEV_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjRjMmU4OWNhLWZkMGEtNDU5MS1iMGU2LTIxNWM1NDkxMDM2MyIsImVtYWlsIjoiZGV2QGJ1Z2ZpeGVyLmxvY2FsIiwiZGlzcGxheU5hbWUiOiJEZXYgVXNlciIsInJvbGUiOiJVU0VSIiwiaWF0IjoxNzg3NTY5NTUxLCJleHAiOjE3OTAxNjE1NTF9.IZURBDLn1tyXQEFQIpF9SUpzQxKTSBESXdMKBt_1i5M';';
+const DEV_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImFjYTkxYmRjLTE4NGUtNGQ5NS04MTQzLTZmMmE1MDMxYjk1YyIsImVtYWlsIjoiZGV2QGJ1Z2ZpeGVyLmxvY2FsIiwiZGlzcGxheU5hbWUiOiJEZXYgVXNlciIsInJvbGUiOiJVU0VSIiwiaWF0IjoxNzg3NjU3MDY0LCJleHAiOjE3OTAyNDkwNjR9.6t9ShnEuskJnue8ITagpLzR4ReFagfshCue9jhPayTo';
+
+export function getAuthToken(): string {
+  return DEV_TOKEN;
+}
+
+/** Builds the ws(s):// URL for the realtime gateway, scoped to a project. */
+export function getRealtimeSocketUrl(projectId: string): string {
+  const wsBase = API_BASE_URL.replace(/^http/, 'ws');
+  const params = new URLSearchParams({ token: getAuthToken(), projectId });
+  return `${wsBase}/realtime?${params.toString()}`;
+}
+
+/** Uploads a project archive (multipart/form-data) — separate from apiRequest since it isn't JSON. */
+export async function uploadProjectArchive(projectId: string, file: File): Promise<{ storagePath: string; sha256: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${API_PREFIX}/projects/${projectId}/upload`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${getAuthToken()}` },
+      body: formData,
+    });
+  } catch {
+    throw new ApiError(0, 'Could not reach the backend. Is it running?');
+  }
+
+  const text = await response.text();
+  const payload = text ? JSON.parse(text) : null;
+  if (!response.ok) {
+    const message = payload?.message ?? payload?.error?.message ?? `Upload failed with status ${response.status}`;
+    throw new ApiError(response.status, message, payload?.code ?? payload?.error?.code);
+  }
+  return payload;
+}
 
 export class ApiError extends Error {
   status: number;

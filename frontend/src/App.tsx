@@ -10,13 +10,15 @@ import { SettingsView } from './components/SettingsView';
 import { LogBugModal } from './components/LogBugModal';
 import { InspectFixModal } from './components/InspectFixModal';
 import { ModelSelectorModal } from './components/ModelSelectorModal';
-import { initialBugs } from './data/mockData';
+import { getOrCreateDefaultProject, fetchBugs, createBugApi, updateBugStatusApi } from './api/bugs';
 import { NavigationTab, Bug, AIFixHistoryItem } from './types';
 import { ChevronDown, Sparkles } from 'lucide-react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<NavigationTab>('workspace');
-  const [bugs, setBugs] = useState<Bug[]>(initialBugs);
+  const [bugs, setBugs] = useState<Bug[]>([]);
+  const [projectId, setProjectId] = useState<string | null>(null);
+  const [backendConnected, setBackendConnected] = useState(false);
   const [isLogBugOpen, setIsLogBugOpen] = useState(false);
   const [isModelSelectorOpen, setIsModelSelectorOpen] = useState(false);
   const [inspectingBug, setInspectingBug] = useState<Bug | null>(null);
@@ -25,17 +27,40 @@ export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [currentModel, setCurrentModel] = useState('GPT-4-Turbo');
 
-  const handleAddBug = (newBug: Bug) => {
-    setBugs(prev => [newBug, ...prev]);
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const pid = await getOrCreateDefaultProject();
+        setProjectId(pid);
+        const realBugs = await fetchBugs(pid);
+        setBugs(realBugs);
+        setBackendConnected(true);
+      } catch (err) {
+        console.error('Failed to load backend data:', err);
+        setBackendConnected(false);
+      }
+    })();
+  }, []);
+
+  const handleAddBug = async (newBug: Bug) => {
+    if (!projectId) return;
+    try {
+      const created = await createBugApi(projectId, newBug);
+      setBugs(prev => [created, ...prev]);
+    } catch (err) {
+      console.error('Failed to create bug:', err);
+    }
   };
 
-  const handleApplyPatch = (bugId: string) => {
-    setBugs(prev => prev.map(b => {
-      if (b.code === bugId || b.id === bugId) {
-        return { ...b, status: 'Fixed', aiStatus: 'Applied' };
-      }
-      return b;
-    }));
+  const handleApplyPatch = async (bugId: string) => {
+    const target = bugs.find(b => b.code === bugId || b.id === bugId);
+    if (!target) return;
+    try {
+      const updated = await updateBugStatusApi(target.id, 'Fixed');
+      setBugs(prev => prev.map(b => (b.id === updated.id ? updated : b)));
+    } catch (err) {
+      console.error('Failed to apply patch:', err);
+    }
   };
 
   const handleNavigateToWorkspaceWithBug = (bug: Bug) => {
@@ -162,7 +187,8 @@ export default function App() {
       <footer className="bg-[#0D1117] border-t border-[#30363D] px-6 py-2 flex items-center justify-between text-[11px] text-gray-400 shrink-0 select-none">
         <div className="flex items-center gap-4">
           <span className="flex items-center gap-1.5 text-gray-300">
-            <span className="w-2 h-2 bg-green-500 rounded-full" /> Connected to Backend
+            <span className={`w-2 h-2 rounded-full ${backendConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+            {backendConnected ? 'Connected to Backend' : 'Backend Unreachable'}
           </span>
           <span className="text-gray-500">|</span>
           <span className="text-gray-400 font-mono">UTF-8</span>

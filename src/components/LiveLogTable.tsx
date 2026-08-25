@@ -48,6 +48,14 @@ export const LiveLogTable: React.FC<LiveLogTableProps> = ({
   onRestartPipeline
 }) => {
   const [filter, setFilter] = useState<'ALL' | 'ERROR' | 'WARN' | 'PASS' | 'INFO'>('ALL');
+  const totalFixes = historyItems.length;
+  const appliedFixes = historyItems.filter(i => i.status === 'Applied').length;
+  const avgConfidence = totalFixes > 0
+    ? (historyItems.reduce((sum, i) => sum + i.confidence, 0) / totalFixes).toFixed(1)
+    : '0';
+  const totalMinutesSaved = historyItems.reduce((sum, i) => sum + parseInt(i.estTime, 10), 0);
+  const hoursSaved = (totalMinutesSaved / 60).toFixed(1);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [autoScroll, setAutoScroll] = useState(true);
   const [isPaused, setIsPaused] = useState(false);

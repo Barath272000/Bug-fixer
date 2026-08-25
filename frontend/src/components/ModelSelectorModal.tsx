@@ -126,6 +126,14 @@ export const ModelSelectorModal: React.FC<ModelSelectorModalProps> = ({
   const [models, setModels] = useState<AIModelOption[]>(defaultModels);
   const [selectedId, setSelectedId] = useState<string>(currentModel);
   const [filterProvider, setFilterProvider] = useState<string>('ALL');
+  const totalFixes = historyItems.length;
+  const appliedFixes = historyItems.filter(i => i.status === 'Applied').length;
+  const avgConfidence = totalFixes > 0
+    ? (historyItems.reduce((sum, i) => sum + i.confidence, 0) / totalFixes).toFixed(1)
+    : '0';
+  const totalMinutesSaved = historyItems.reduce((sum, i) => sum + parseInt(i.estTime, 10), 0);
+  const hoursSaved = (totalMinutesSaved / 60).toFixed(1);
+
   const [searchQuery, setSearchQuery] = useState('');
 
   if (!isOpen) return null;
