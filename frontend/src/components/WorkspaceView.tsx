@@ -50,13 +50,7 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
   const [activeFile, setActiveFile] = useState<string>('auth_service.py');
   const [openFiles, setOpenFiles] = useState<string[]>(['auth_service.py', 'database_utils.js', 'api_gateway.go']);
   
-  // Tree collapse state
-  const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({
-    'src': true,
-    'services': true,
-    'app': true,
-    'tests': false
-  });
+  
 
   // Editor states
   const [isPatchApplied, setIsPatchApplied] = useState(false);
