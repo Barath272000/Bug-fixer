@@ -1,23 +1,21 @@
-import React, { useState, useRef } from 'react';
-import { 
-  FileText, 
-  Upload, 
-  Trash2, 
-  Plus, 
-  FileCode, 
-  FileJson, 
-  BookOpen, 
-  HelpCircle, 
-  Check, 
-  Eye, 
-  X, 
-  Sparkles,
+import {
+  AlignLeft,
+  BookOpen,
+  Check,
   ChevronDown,
   ChevronUp,
-  FileCheck,
-  AlignLeft,
-  FileSpreadsheet
+  Eye,
+  FileCode,
+  FileJson,
+  FileSpreadsheet,
+  FileText,
+  Plus,
+  Sparkles,
+  Trash2,
+  Upload,
+  X
 } from 'lucide-react';
+import React, { useRef, useState } from 'react';
 import { ContextDoc } from '../types';
 
 interface ContextDocsUploaderProps {

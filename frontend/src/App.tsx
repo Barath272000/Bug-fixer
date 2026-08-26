@@ -1,18 +1,18 @@
+import { ChevronDown } from 'lucide-react';
 import React, { useState } from 'react';
-import { Sidebar } from './components/Sidebar';
-import { DashboardView } from './components/DashboardView';
-import { BugListView } from './components/BugListView';
+import { createBugApi, fetchBugs, getOrCreateDefaultProject, updateBugStatusApi } from './api/bugs';
 import { AIFixHistoryView } from './components/AIFixHistoryView';
-import { WorkspaceView } from './components/WorkspaceView';
 import { AnalyticsView } from './components/AnalyticsView';
+import { BugListView } from './components/BugListView';
+import { DashboardView } from './components/DashboardView';
 import { DocsView } from './components/DocsView';
-import { SettingsView } from './components/SettingsView';
-import { LogBugModal } from './components/LogBugModal';
 import { InspectFixModal } from './components/InspectFixModal';
+import { LogBugModal } from './components/LogBugModal';
 import { ModelSelectorModal } from './components/ModelSelectorModal';
-import { getOrCreateDefaultProject, fetchBugs, createBugApi, updateBugStatusApi } from './api/bugs';
-import { NavigationTab, Bug, AIFixHistoryItem } from './types';
-import { ChevronDown, Sparkles } from 'lucide-react';
+import { SettingsView } from './components/SettingsView';
+import { Sidebar } from './components/Sidebar';
+import { WorkspaceView } from './components/WorkspaceView';
+import { AIFixHistoryItem, Bug, NavigationTab } from './types';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<NavigationTab>('workspace');

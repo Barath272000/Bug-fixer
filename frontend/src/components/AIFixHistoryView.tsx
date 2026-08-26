@@ -1,20 +1,7 @@
 import React, { useState } from 'react';
-import { 
-  History, 
-  Sparkles, 
-  Check, 
-  Search, 
-  ExternalLink, 
-  CheckCircle2, 
-  Cpu, 
-  Code2, 
-  Clock, 
-  ChevronRight,
-  TrendingUp,
-  Layers
-} from 'lucide-react';
-import { fetchFixHistory } from '../api/fixes';
-import { AIFixHistoryItem } from '../types';
+import { History, Sparkles, Search, ExternalLink } from 'lucide-react';
+import { fetchFixHistory, fetchFixSummary } from '../api/fixes';
+import { AIFixHistoryItem, FixSummary } from '../types';
 
 interface AIFixHistoryViewProps {
   onInspectFix: (item: AIFixHistoryItem) => void;
@@ -43,13 +30,16 @@ export const AIFixHistoryView: React.FC<AIFixHistoryViewProps> = ({ onInspectFix
   const totalMinutesSaved = historyItems.reduce((sum, i) => sum + parseInt(i.estTime, 10), 0);
   const hoursSaved = (totalMinutesSaved / 60).toFixed(1);
 
-    const totalFixes = historyItems.length;
-  const appliedFixes = historyItems.filter(i => i.status === 'Applied').length;
-  const avgConfidence = totalFixes > 0
-    ? (historyItems.reduce((sum, i) => sum + i.confidence, 0) / totalFixes).toFixed(1)
-    : '0';
-  const totalMinutesSaved = historyItems.reduce((sum, i) => sum + parseInt(i.estTime, 10), 0);
-  const hoursSaved = (totalMinutesSaved / 60).toFixed(1);
+  const [summary, setSummary] = useState<FixSummary | null>(null);
+  React.useEffect(() => {
+    (async () => {
+      try {
+        setSummary(await fetchFixSummary());
+      } catch (err) {
+        console.error('Failed to load fix summary:', err);
+      }
+    })();
+  }, []);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'Applied' | 'Ready' | 'Superseded'>('ALL');
@@ -84,10 +74,10 @@ export const AIFixHistoryView: React.FC<AIFixHistoryViewProps> = ({ onInspectFix
           </div>
         </div>
 
-        {/* Global Success Metric */}
+      
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[#0D1117] border border-[#30363D] text-xs font-semibold">
           <span className="w-2 h-2 rounded-full bg-green-500" />
-          <span className="text-gray-300">92% Acceptance Rate</span>
+          <span className="text-gray-300">{summary ? summary.acceptanceRate : '—'}% Acceptance Rate</span>
         </div>
       </div>
 
@@ -96,21 +86,33 @@ export const AIFixHistoryView: React.FC<AIFixHistoryViewProps> = ({ onInspectFix
         <div className="rounded-lg bg-[#0D1117] border border-[#30363D] p-4 space-y-1 shadow-sm">
           <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Total Fixes Generated</div>
           <div className="text-2xl font-bold text-white">{totalFixes} Patches</div>
+          <div className="text-[11px] text-gray-500">
+            {summary ? `${summary.projectCount} repos · ${summary.dateSpanDays} days` : '—'}
+          </div>
         </div>
 
         <div className="rounded-lg bg-[#0D1117] border border-[#30363D] p-4 space-y-1 shadow-sm">
           <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Applied to Production</div>
           <div className="text-2xl font-bold text-green-400">{appliedFixes} Fixes</div>
+          <div className="text-[11px] text-gray-500">
+            {summary ? `${summary.regressionsFound} regression${summary.regressionsFound === 1 ? '' : 's'} noted` : '—'}
+          </div>
         </div>
 
         <div className="rounded-lg bg-[#0D1117] border border-[#30363D] p-4 space-y-1 shadow-sm">
           <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Avg AI Confidence</div>
           <div className="text-2xl font-bold text-indigo-300">{avgConfidence}%</div>
+          <div className="text-[11px] text-gray-500">
+            {summary ? `${summary.acceptanceRate}% acceptance rate` : '—'}
+          </div>
         </div>
 
         <div className="rounded-lg bg-[#0D1117] border border-[#30363D] p-4 space-y-1 shadow-sm">
           <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Dev Time Saved</div>
           <div className="text-2xl font-bold text-white">~{hoursSaved} hrs</div>
+          <div className="text-[11px] text-gray-500">
+            {summary ? `est. $${summary.estimatedDollarsSaved.toLocaleString()} saved` : '—'}
+          </div>
         </div>
       </div>
 
@@ -280,7 +282,7 @@ export const AIFixHistoryView: React.FC<AIFixHistoryViewProps> = ({ onInspectFix
             </div>
 
             <div className="rounded-md bg-[#0B0E14] border border-[#30363D] p-3 font-mono text-xs overflow-x-auto leading-relaxed max-h-[300px]">
-              {selectedFix.fullDiff.split('\n').map((line, idx) => {
+              {(selectedFix.fullDiff ?? '').split('\n').map((line, idx) => {
                 if (line.startsWith('+')) {
                   return (
                     <div key={idx} className="bg-green-950/40 text-green-300 px-2 py-0.5 rounded -mx-1">

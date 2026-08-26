@@ -11,7 +11,7 @@ export interface Bug {
   title: string;
   tags: string[];
   severity: SeverityLevel;
-  status: BugStatus;
+  status: BugStatus
   aiStatus: AIStatus;
   language: string;
   component: string;
@@ -45,6 +45,14 @@ export interface AIFixHistoryItem {
   estTime: string;
   fullDiff?: string;
   codeContext?: string;
+}
+
+export interface FixSummary {
+  projectCount: number;
+  dateSpanDays: number;
+  regressionsFound: number;
+  acceptanceRate: number;
+  estimatedDollarsSaved: number;
 }
 
 export interface PhaseSubprocess {

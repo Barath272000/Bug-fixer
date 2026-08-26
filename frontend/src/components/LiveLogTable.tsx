@@ -1,28 +1,25 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Terminal, 
-  Search, 
-  Download, 
-  Trash2, 
-  Pause, 
-  Play, 
-  ArrowDown, 
-  CheckCircle2, 
-  AlertTriangle, 
-  XCircle, 
-  Info, 
-  Sparkles, 
-  Cpu, 
-  Layers, 
-  Copy, 
-  Check, 
-  ChevronDown, 
-  ChevronRight, 
-  Filter,
+import {
+  AlertTriangle,
+  ArrowDown,
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  Download,
+  Info,
   Maximize2,
   Minimize2,
-  RefreshCw
+  Pause,
+  Play,
+  RefreshCw,
+  Search,
+  Sparkles,
+  Terminal,
+  Trash2,
+  XCircle
 } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
 import { LogLine } from '../types';
 
 export interface ExtendedLogLine extends LogLine {
@@ -48,13 +45,6 @@ export const LiveLogTable: React.FC<LiveLogTableProps> = ({
   onRestartPipeline
 }) => {
   const [filter, setFilter] = useState<'ALL' | 'ERROR' | 'WARN' | 'PASS' | 'INFO'>('ALL');
-  const totalFixes = historyItems.length;
-  const appliedFixes = historyItems.filter(i => i.status === 'Applied').length;
-  const avgConfidence = totalFixes > 0
-    ? (historyItems.reduce((sum, i) => sum + i.confidence, 0) / totalFixes).toFixed(1)
-    : '0';
-  const totalMinutesSaved = historyItems.reduce((sum, i) => sum + parseInt(i.estTime, 10), 0);
-  const hoursSaved = (totalMinutesSaved / 60).toFixed(1);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [autoScroll, setAutoScroll] = useState(true);
@@ -63,7 +53,7 @@ export const LiveLogTable: React.FC<LiveLogTableProps> = ({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isMaximized, setIsMaximized] = useState(false);
 
-  const tableBottomRef = useRef<HTMLDivElement>(null);
+  const tableBottomRef = useRef<HTMLTableRowElement>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom when new logs arrive (if autoScroll enabled and not paused)

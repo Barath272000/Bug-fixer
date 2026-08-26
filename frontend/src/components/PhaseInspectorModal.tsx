@@ -1,40 +1,32 @@
-import React, { useState } from 'react';
-import { 
-  X, 
-  ShieldCheck, 
-  CheckCircle2, 
-  AlertTriangle, 
-  FileWarning, 
-  Lock, 
-  Terminal, 
-  RotateCw, 
-  FileText, 
-  HardDrive, 
-  Cpu, 
-  Check, 
-  Layers, 
-  Sparkles,
-  ExternalLink,
-  Copy,
-  Info,
-  Sliders,
-  Shield,
+import {
   Activity,
-  Code,
-  FolderGit2,
   Box,
-  Wrench,
-  PlayCircle,
-  Bug,
   BrainCircuit,
-  GitPullRequest,
+  Bug,
+  Check,
   CheckCircle,
-  XCircle,
+  CheckCircle2,
+  Copy,
+  FileCheck,
+  FileText,
+  FolderGit2,
+  HardDrive,
+  Layers,
+  Lock,
+  PlayCircle,
   RefreshCcw,
-  Download,
-  FileCheck
+  RotateCw,
+  Shield,
+  ShieldCheck,
+  Sliders,
+  Sparkles,
+  Terminal,
+  Wrench,
+  X,
+  XCircle
 } from 'lucide-react';
-import { PipelinePhase, ContextDoc } from '../types';
+import React, { useState } from 'react';
+import { ContextDoc, PipelinePhase } from '../types';
 
 interface PhaseInspectorModalProps {
   phase: PipelinePhase | null;

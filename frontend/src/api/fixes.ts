@@ -1,5 +1,5 @@
 import { apiRequest } from './client';
-import { AIFixHistoryItem } from '../types';
+import { AIFixHistoryItem, FixSummary } from '../types';
 
 interface BackendFix {
   id: string;
@@ -36,4 +36,8 @@ function toFrontendFix(f: BackendFix): AIFixHistoryItem {
 export async function fetchFixHistory(): Promise<AIFixHistoryItem[]> {
   const result = await apiRequest<BackendFix[]>('/fixes/history');
   return result.map(toFrontendFix);
+}
+
+export async function fetchFixSummary(): Promise<FixSummary> {
+  return apiRequest<FixSummary>('/fixes/summary');
 }

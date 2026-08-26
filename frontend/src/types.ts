@@ -3,7 +3,7 @@ export type NavigationTab = 'dashboard' | 'bugs' | 'ai-fix-history' | 'workspace
 export type SeverityLevel = 'Critical' | 'High' | 'Medium' | 'Low';
 export type BugStatus = 'Open' | 'In Review' | 'Fixed' | 'Closed' | 'AI Suggested' | 'Applying Fix';
 export type AIStatus = 'Pending' | 'Ready' | 'Applied';
-export type AIModel = 'GPT-4o' | 'Claude 3.5 Sonnet' | 'Gemini 1.5 Pro';
+export type AIModel = string;
 
 export interface Bug {
   id: string;
@@ -45,6 +45,14 @@ export interface AIFixHistoryItem {
   estTime: string;
   fullDiff?: string;
   codeContext?: string;
+}
+
+export interface FixSummary {
+  projectCount: number;
+  dateSpanDays: number;
+  regressionsFound: number;
+  acceptanceRate: number;
+  estimatedDollarsSaved: number;
 }
 
 export interface PhaseSubprocess {

@@ -37,11 +37,11 @@ export const BugListView: React.FC<BugListViewProps> = ({
   const totalMinutesSaved = historyItems.reduce((sum, i) => sum + parseInt(i.estTime, 10), 0);
   const hoursSaved = (totalMinutesSaved / 60).toFixed(1);
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [severityFilter, setSeverityFilter] = useState<string>('ALL');
-  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+    const [searchQuery, setSearchQuery] = useState('');
+  const [severityFilter] = useState<string>('ALL');
+  const [statusFilter] = useState<string>('ALL');
   const [selectedBugIds, setSelectedBugIds] = useState<string[]>([]);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [, setCurrentPage] = useState(1);
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
 
   const filteredBugs = bugs.filter(bug => {

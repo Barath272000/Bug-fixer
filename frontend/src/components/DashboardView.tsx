@@ -1,35 +1,22 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  UploadCloud, 
-  Play, 
-  RotateCw, 
-  CheckCircle2, 
-  Clock, 
-  Sparkles, 
-  Cpu, 
-  AlertCircle, 
-  Boxes, 
-  Search, 
-  Download, 
-  Folder, 
-  FileCode, 
-  Layers, 
-  Github, 
-  Code, 
-  Check, 
-  Zap,
-  Terminal,
-  Activity,
-  CheckCircle,
+import {
+  AlertCircle,
   BookOpen,
-  FileCheck
+  Check,
+  Code,
+  Cpu,
+  Github,
+  Layers,
+  RotateCw,
+  UploadCloud,
+  Zap
 } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { ApiError, apiRequest, getRealtimeSocketUrl, uploadProjectArchive } from '../api/client';
 import { pipelinePhases as initialPipelinePhases } from '../data/mockData';
-import { LogLine, PipelinePhase, ContextDoc } from '../types';
-import { LiveLogTable, ExtendedLogLine } from './LiveLogTable';
+import { ContextDoc, PipelinePhase } from '../types';
 import { ContextDocsUploader } from './ContextDocsUploader';
+import { ExtendedLogLine, LiveLogTable } from './LiveLogTable';
 import { PhaseInspectorModal } from './PhaseInspectorModal';
-import { apiRequest, uploadProjectArchive, getRealtimeSocketUrl, ApiError } from '../api/client';
 
 const pendingPipelinePhases: PipelinePhase[] = initialPipelinePhases.map((p) => ({
   ...p,

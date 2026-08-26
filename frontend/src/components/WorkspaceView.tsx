@@ -1,43 +1,30 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Folder, 
-  FolderOpen, 
-  FileCode, 
-  Plus, 
-  RotateCw, 
-  ChevronRight, 
-  ChevronDown, 
-  Search, 
-  Terminal as TerminalIcon, 
-  Play, 
-  GitBranch, 
-  Bug, 
-  Puzzle, 
-  Settings, 
-  SplitSquareVertical, 
-  X, 
-  Check, 
-  Sparkles, 
+import {
   AlertCircle,
-  Send,
-  HelpCircle,
-  ArrowRight,
-  Zap,
+  Bug,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   Columns,
+  Cpu,
+  FileCode,
+  FileText,
+  Folder,
+  GitBranch,
   Maximize2,
   Minimize2,
-  Trash2,
-  CheckCircle2,
-  Layers,
-  FileText,
-  Clock,
   MoreHorizontal,
-  ChevronUp,
-  Cpu,
+  Play,
+  Puzzle,
   RefreshCw,
-  ExternalLink,
-  Code2
+  RotateCw,
+  Search,
+  Send,
+  Settings,
+  Sparkles,
+  Terminal as TerminalIcon,
+  X
 } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Bug as BugType } from '../types';
 
 interface WorkspaceViewProps {
@@ -54,6 +41,8 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
   activeModel = 'GPT-4-Turbo',
   onOpenModelSelector
 }) => {
+  void initialSelectedBug; // TODO: wire this up to pre-select the bug in the editor
+
   // Activity bar state
   const [activeActivityTab, setActiveActivityTab] = useState<ActivityBarTab>('explorer');
   
@@ -74,7 +63,7 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
   const [isDiffMode, setIsDiffMode] = useState(false);
   const [breakpoints, setBreakpoints] = useState<number[]>([6]);
   const [showErrorHover, setShowErrorHover] = useState(true);
-  const [selectedLine, setSelectedLine] = useState<number>(6);
+  const [, setSelectedLine] = useState<number>(6);
 
   // Bottom Panel state
   const [bottomTab, setBottomTab] = useState<BottomPanelTab>('problems');

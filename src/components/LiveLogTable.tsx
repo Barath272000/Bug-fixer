@@ -63,7 +63,7 @@ export const LiveLogTable: React.FC<LiveLogTableProps> = ({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isMaximized, setIsMaximized] = useState(false);
 
-  const tableBottomRef = useRef<HTMLDivElement>(null);
+  const tableBottomRef = useRef<HTMLTableRowElement>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom when new logs arrive (if autoScroll enabled and not paused)
