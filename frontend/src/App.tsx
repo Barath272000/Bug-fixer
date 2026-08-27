@@ -166,11 +166,14 @@ export default function App() {
             />
           )}
 
+
           {activeTab === 'workspace' && (
             <WorkspaceView 
               initialSelectedBug={workspaceTargetBug}
               activeModel={currentModel}
               onOpenModelSelector={() => setIsModelSelectorOpen(true)}
+              projectId={projectId}
+              bugs={bugs}
             />
           )}
 

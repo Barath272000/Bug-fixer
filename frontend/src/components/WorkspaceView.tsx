@@ -1,16 +1,23 @@
 import {
   AlertCircle,
+  AlertTriangle,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  Files,
   File as FileIcon,
   FileCode,
   FilePlus,
   Folder,
   FolderPlus,
+  GitBranch,
   Loader2,
+  Package,
+  PanelBottom,
   RefreshCw,
   Save,
+  Search,
+  Sparkles,
   X,
 } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -22,12 +29,18 @@ import {
   WorkspaceTreeNode,
 } from '../api/workspace';
 import { ApiError } from '../api/client';
+import { AgentPanel } from './Agentpanel';
 
 interface WorkspaceViewProps {
   initialSelectedBug?: BugType | null;
   activeModel?: string;
   onOpenModelSelector?: () => void;
+  projectId?: string | null;
+  bugs?: BugType[];
 }
+
+type ActivityView = 'explorer' | 'search' | 'git' | 'extensions';
+type BottomTab = 'problems' | 'output' | 'terminal';
 
 interface OpenFile {
   path: string;
@@ -53,8 +66,16 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
   initialSelectedBug,
   activeModel = 'GPT-4-Turbo',
   onOpenModelSelector,
+  projectId = null,
+  bugs = [],
 }) => {
   void initialSelectedBug; // TODO: wire this up to pre-select a file relevant to the bug
+
+  // --- Activity bar / panel layout state ---
+  const [activityView, setActivityView] = useState<ActivityView>('explorer');
+  const [agentPanelOpen, setAgentPanelOpen] = useState(true);
+  const [bottomPanelOpen, setBottomPanelOpen] = useState(true);
+  const [bottomTab, setBottomTab] = useState<BottomTab>('problems');
 
   // --- Tree state ---
   const [tree, setTree] = useState<WorkspaceTreeNode[]>([]);
@@ -286,11 +307,59 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
     });
   };
 
+  const openProblemFile = (path: string) => {
+    setActivityView('explorer');
+    void openFile(path);
+  };
+
+  const openProblems = bugs.filter(b => b.status === 'Open' || b.status === 'In Review' || b.status === 'AI Suggested');
+
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#1E1E1E] text-[#CCCCCC] font-sans select-none">
       <div className="flex-1 flex overflow-hidden">
-        {/* SIDEBAR: EXPLORER */}
-        <div className="w-64 bg-[#252526] border-r border-[#191919] flex flex-col shrink-0 text-xs text-[#CCCCCC]">
+        {/* ACTIVITY BAR */}
+        <div className="w-11 bg-[#333333] border-r border-[#191919] flex flex-col items-center justify-between py-2 shrink-0">
+          <div className="flex flex-col items-center gap-1">
+            {([
+              { id: 'explorer' as const, icon: Files, title: 'Explorer' },
+              { id: 'search' as const, icon: Search, title: 'Search' },
+              { id: 'git' as const, icon: GitBranch, title: 'Source Control' },
+              { id: 'extensions' as const, icon: Package, title: 'Extensions' },
+            ]).map(({ id, icon: Icon, title }) => (
+              <button
+                key={id}
+                onClick={() => setActivityView(id)}
+                title={title}
+                className={`relative w-11 h-9 flex items-center justify-center ${
+                  activityView === id ? 'text-white' : 'text-[#858585] hover:text-white'
+                }`}
+              >
+                {activityView === id && (
+                  <span className="absolute left-0 top-1 bottom-1 w-0.5 bg-white rounded-full" />
+                )}
+                <Icon className="w-5 h-5" />
+                {id === 'git' && openProblems.length > 0 && (
+                  <span className="absolute -bottom-0.5 -right-0.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-[#007ACC] text-white text-[8px] flex items-center justify-center font-semibold">
+                    {openProblems.length}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-col items-center gap-1">
+            <button
+              onClick={() => setAgentPanelOpen(o => !o)}
+              title="Toggle Agent"
+              className={`w-11 h-9 flex items-center justify-center ${agentPanelOpen ? 'text-white' : 'text-[#858585] hover:text-white'}`}
+            >
+              <Sparkles className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* SIDEBAR: EXPLORER / SEARCH / GIT / EXTENSIONS */}
+        {activityView === 'explorer' && (
+          <div className="w-64 bg-[#252526] border-r border-[#191919] flex flex-col shrink-0 text-xs text-[#CCCCCC]">
           <div className="px-3 py-2.5 flex items-center justify-between text-[11px] font-bold tracking-wider uppercase text-[#BBBBBB] border-b border-[#333333]">
             <span>Explorer</span>
             <div className="flex items-center gap-1 text-[#858585]">
@@ -367,12 +436,48 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
 
             {renderTree(tree)}
           </div>
-        </div>
+          </div>
+        )}
 
-        {/* MAIN EDITOR AREA */}
+        {activityView === 'search' && (
+          <div className="w-64 bg-[#252526] border-r border-[#191919] shrink-0 flex flex-col text-xs">
+            <div className="px-3 py-2.5 text-[11px] font-bold tracking-wider uppercase text-[#BBBBBB] border-b border-[#333333]">
+              Search
+            </div>
+            <div className="p-3 text-[#858585] leading-relaxed">
+              In-workspace search isn't wired up yet — it needs a search endpoint on the backend. Not built yet.
+            </div>
+          </div>
+        )}
+
+        {activityView === 'git' && (
+          <div className="w-64 bg-[#252526] border-r border-[#191919] shrink-0 flex flex-col text-xs">
+            <div className="px-3 py-2.5 text-[11px] font-bold tracking-wider uppercase text-[#BBBBBB] border-b border-[#333333]">
+              Source Control
+            </div>
+            <div className="p-3 text-[#858585] leading-relaxed">
+              There's a git.service.ts on the backend for repo integrations, but it isn't exposed as a diffable source-control panel here yet. Not built yet.
+            </div>
+          </div>
+        )}
+
+        {activityView === 'extensions' && (
+          <div className="w-64 bg-[#252526] border-r border-[#191919] shrink-0 flex flex-col text-xs">
+            <div className="px-3 py-2.5 text-[11px] font-bold tracking-wider uppercase text-[#BBBBBB] border-b border-[#333333]">
+              Extensions
+            </div>
+            <div className="p-3 text-[#858585] leading-relaxed">
+              No extension system exists in this app — this is just a placeholder tab to match the IDE layout.
+            </div>
+          </div>
+        )}
+
+        {/* MAIN EDITOR + BOTTOM PANEL (stacked vertically) */}
         <div className="flex-1 flex flex-col overflow-hidden bg-[#1E1E1E] min-w-0">
+          <div className="flex-1 flex flex-col overflow-hidden bg-[#1E1E1E] min-w-0 min-h-0">
           {/* Tabs */}
           <div className="flex items-center justify-between bg-[#252526] border-b border-[#191919] overflow-x-auto text-xs shrink-0">
+            <div className="flex items-center overflow-x-auto"></div>
             <div className="flex items-center overflow-x-auto">
               {openFiles.map(file => {
                 const active = activePath === file.path;
@@ -477,7 +582,113 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
               />
             )}
           </div>
+          </div>
+
+        {bottomPanelOpen && (
+          <div className="h-44 shrink-0 bg-[#1E1E1E] border-t border-[#2D2D2D] flex flex-col text-xs">
+            <div className="flex items-center justify-between border-b border-[#2D2D2D] px-2 shrink-0">
+              <div className="flex items-center">
+                {([
+                  { id: 'problems' as const, label: `Problems${openProblems.length ? ` (${openProblems.length})` : ''}` },
+                  { id: 'output' as const, label: 'Output' },
+                  { id: 'terminal' as const, label: 'Terminal' },
+                ]).map(t => (
+                  <button
+                    key={t.id}
+                    onClick={() => setBottomTab(t.id)}
+                    className={`px-3 py-1.5 border-b-2 transition-colors ${
+                      bottomTab === t.id
+                        ? 'border-[#007ACC] text-white'
+                        : 'border-transparent text-[#858585] hover:text-[#CCCCCC]'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => setBottomPanelOpen(false)}
+                className="p-1 text-[#858585] hover:text-white"
+                title="Close panel"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-2.5">
+              {bottomTab === 'problems' && (
+                openProblems.length === 0 ? (
+                  <p className="text-[#858585]">No problems have been detected in the workspace.</p>
+                ) : (
+                  <div className="space-y-1">
+                    {openProblems.map(bug => (
+                      <button
+                        key={bug.id}
+                        onClick={() => bug.filePath && openProblemFile(bug.filePath)}
+                        disabled={!bug.filePath}
+                        className="w-full flex items-center gap-2 px-1.5 py-1 rounded hover:bg-[#2A2D2E] text-left disabled:cursor-default disabled:hover:bg-transparent"
+                      >
+                        {bug.severity === 'Critical' || bug.severity === 'High' ? (
+                          <AlertCircle className="w-3.5 h-3.5 text-[#F48771] shrink-0" />
+                        ) : (
+                          <AlertTriangle className="w-3.5 h-3.5 text-[#CCA700] shrink-0" />
+                        )}
+                        <span className="text-[#CCCCCC]">{bug.title}</span>
+                        {bug.filePath && (
+                          <span className="text-[#858585] font-mono text-[11px]">
+                            {bug.filePath}{bug.lineNumber ? `:${bug.lineNumber}` : ''}
+                          </span>
+                        )}
+                        <span className="ml-auto text-[10px] uppercase tracking-wide text-[#6A6A6A]">{bug.status}</span>
+                      </button>
+                    ))}
+                  </div>
+                )
+              )}
+
+              {bottomTab === 'output' && (
+                <p className="text-[#858585]">
+                  Output streaming isn't wired into this panel yet — the live pipeline logs currently show on the Dashboard tab. Not built yet.
+                </p>
+              )}
+
+              {bottomTab === 'terminal' && (
+                <p className="text-[#858585]">
+                  There's no real terminal/shell backend wired up here yet — this is a placeholder to match the IDE layout. Not built yet.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {!bottomPanelOpen && (
+          <button
+            onClick={() => setBottomPanelOpen(true)}
+            className="h-6 shrink-0 bg-[#1E1E1E] border-t border-[#2D2D2D] flex items-center gap-1.5 px-3 text-[10px] text-[#858585] hover:text-white"
+          >
+            <PanelBottom className="w-3 h-3" />
+            {openProblems.length > 0 ? `${openProblems.length} problem(s)` : 'Problems / Output / Terminal'}
+          </button>
+        )}
         </div>
+
+        {agentPanelOpen && (
+          <AgentPanel
+            projectId={projectId}
+            activeModel={activeModel}
+            onFileWritten={(path) => {
+              // Refresh the file if it's currently open, and always refresh the tree
+              // (the fix may have created or touched files).
+              setOpenFiles(prev => prev.map(f => (f.path === path ? { ...f } : f)));
+              void loadTree();
+              if (openFiles.some(f => f.path === path)) {
+                void fetchWorkspaceFile(path).then(result => {
+                  setOpenFiles(prev => prev.map(f => (f.path === path ? { path, content: result.content, savedContent: result.content } : f)));
+                });
+              }
+            }}
+          />
+        )}
       </div>
 
       {/* STATUS BAR */}
