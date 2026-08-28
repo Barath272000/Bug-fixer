@@ -21,6 +21,7 @@ import {
   Sparkles,
   X,
 } from 'lucide-react';
+import Editor, { OnMount } from '@monaco-editor/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Bug as BugType } from '../types';
 import {
@@ -31,6 +32,7 @@ import {
 } from '../api/workspace';
 import { ApiError } from '../api/client';
 import { AgentPanel } from './Agentpanel';
+import { IdeMenuBar } from './IdeMenuBar';
 
 interface WorkspaceViewProps {
   initialSelectedBug?: BugType | null;
@@ -41,7 +43,7 @@ interface WorkspaceViewProps {
 }
 
 type ActivityView = 'explorer' | 'search' | 'git' | 'extensions' | 'none';
-type BottomTab = 'problems' | 'output' | 'terminal';
+type BottomTab = 'problems' | 'output' | 'terminal' | 'debug_console';
 
 interface OpenFile {
   path: string;
@@ -63,6 +65,53 @@ function fileIconColor(name: string): string {
   return 'text-[#9CDCFE]';
 }
 
+const EXTENSION_TO_MONACO_LANGUAGE: Record<string, string> = {
+  py: 'python',
+  js: 'javascript',
+  jsx: 'javascript',
+  mjs: 'javascript',
+  cjs: 'javascript',
+  ts: 'typescript',
+  tsx: 'typescript',
+  go: 'go',
+  java: 'java',
+  rb: 'ruby',
+  php: 'php',
+  rs: 'rust',
+  c: 'c',
+  h: 'c',
+  cpp: 'cpp',
+  cc: 'cpp',
+  hpp: 'cpp',
+  cs: 'csharp',
+  json: 'json',
+  md: 'markdown',
+  markdown: 'markdown',
+  yml: 'yaml',
+  yaml: 'yaml',
+  toml: 'toml',
+  sql: 'sql',
+  sh: 'shell',
+  bash: 'shell',
+  html: 'html',
+  htm: 'html',
+  css: 'css',
+  scss: 'scss',
+  less: 'less',
+  xml: 'xml',
+  dockerfile: 'dockerfile',
+  env: 'ini',
+  ini: 'ini',
+  txt: 'plaintext',
+};
+
+function monacoLanguageFor(path: string): string {
+  const name = path.split('/').pop() ?? path;
+  if (name.toLowerCase() === 'dockerfile') return 'dockerfile';
+  const ext = name.includes('.') ? name.split('.').pop()?.toLowerCase() ?? '' : '';
+  return EXTENSION_TO_MONACO_LANGUAGE[ext] ?? 'plaintext';
+}
+
 export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
   initialSelectedBug,
   activeModel = 'GPT-4-Turbo',
@@ -77,6 +126,10 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
   const [agentPanelOpen, setAgentPanelOpen] = useState(true);
   const [bottomPanelOpen, setBottomPanelOpen] = useState(true);
   const [bottomTab, setBottomTab] = useState<BottomTab>('problems');
+
+  // --- Editor preference state (driven by the menu bar) ---
+  const [wordWrap, setWordWrap] = useState(false);
+  const [autoSave, setAutoSave] = useState(true);
 
   // --- Tree state ---
   const [tree, setTree] = useState<WorkspaceTreeNode[]>([]);
@@ -203,6 +256,22 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
     return () => window.removeEventListener('keydown', handler);
   }, [activePath, saveFile]);
 
+  // Auto Save: when enabled, save the active file 1.5s after the user stops typing.
+  useEffect(() => {
+    if (!autoSave || !activeFile || !isDirty(activeFile)) return;
+    const timer = setTimeout(() => {
+      void saveFile(activeFile.path);
+    }, 1500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoSave, activeFile?.content, activeFile?.path]);
+
+  const handleEditorMount: OnMount = (editor, monaco) => {
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+      if (activePath) void saveFile(activePath);
+    });
+  };
+
   const startCreateFile = (parentPath: string) => {
     setCreatingPath(parentPath);
     setNewFileName('');
@@ -230,6 +299,34 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
     } finally {
       setSaving(false);
     }
+  };
+
+  // --- Menu bar wiring ---
+  // Only known activity/bottom tabs are honored; anything the menu bar sends that
+  // doesn't correspond to a real panel here (e.g. Run/Debug, Testing) is a no-op,
+  // matching the "visual-only" items agreed for features we haven't built.
+  const handleSelectActivityTab = (tab: string) => {
+    if (tab === 'explorer' || tab === 'search' || tab === 'git' || tab === 'extensions') {
+      setActivityView(tab);
+    }
+  };
+
+  const handleSelectBottomTab = (tab: string) => {
+    if (tab === 'problems' || tab === 'output' || tab === 'terminal' || tab === 'debug_console') {
+      setBottomTab(tab);
+    }
+  };
+
+  const handleToggleSidebar = () => {
+    setActivityView(prev => (prev === 'none' ? 'explorer' : 'none'));
+  };
+
+  const handleSaveFile = () => {
+    if (activePath) void saveFile(activePath);
+  };
+
+  const handleCloseFile = () => {
+    if (activePath) closeFile(activePath);
   };
 
   const renderTree = (nodes: WorkspaceTreeNode[], depth = 0) => {
@@ -317,6 +414,25 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#1E1E1E] text-[#CCCCCC] font-sans select-none">
+      <IdeMenuBar
+        projectName={projectId ?? 'workspace'}
+        activeFile={activeFile ? activeFile.path.split('/').pop() : undefined}
+        isSidebarOpen={activityView !== 'none'}
+        onToggleSidebar={handleToggleSidebar}
+        isBottomPanelOpen={bottomPanelOpen}
+        onToggleBottomPanel={() => setBottomPanelOpen(o => !o)}
+        isRightCopilotOpen={agentPanelOpen}
+        onToggleRightCopilot={() => setAgentPanelOpen(o => !o)}
+        onSelectActivityTab={handleSelectActivityTab}
+        onSelectBottomTab={handleSelectBottomTab}
+        onSaveFile={handleSaveFile}
+        onCloseFile={handleCloseFile}
+        onOpenModelSelector={onOpenModelSelector}
+        wordWrap={wordWrap}
+        onToggleWordWrap={() => setWordWrap(w => !w)}
+        autoSave={autoSave}
+        onToggleAutoSave={() => setAutoSave(a => !a)}
+      />
       <div className="flex-1 flex overflow-hidden">
         {/* ACTIVITY BAR */}
         <div className="w-11 bg-[#333333] border-r border-[#191919] flex flex-col items-center justify-between py-2 shrink-0">
@@ -557,7 +673,7 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
           )}
 
           {/* Editor body */}
-          <div className="flex-1 overflow-auto bg-[#1E1E1E] relative">
+          <div className="flex-1 overflow-hidden bg-[#1E1E1E] relative">
             {!activeFile && !fileLoading && (
               <div className="h-full flex flex-col items-center justify-center text-[#5A5A5A] gap-2">
                 <FileCode className="w-10 h-10" />
@@ -580,13 +696,32 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
             )}
 
             {activeFile && !fileLoading && (
-              <textarea
+              <Editor
                 key={activeFile.path}
+                path={activeFile.path}
+                language={monacoLanguageFor(activeFile.path)}
                 value={activeFile.content}
-                onChange={e => updateContent(activeFile.path, e.target.value)}
-                spellCheck={false}
-                className="w-full h-full min-h-full resize-none bg-[#1E1E1E] text-[#D4D4D4] font-mono text-sm p-4 outline-none leading-6"
-                style={{ tabSize: 2 }}
+                onChange={(value) => updateContent(activeFile.path, value ?? '')}
+                onMount={handleEditorMount}
+                theme="vs-dark"
+                loading={
+                  <div className="h-full w-full flex items-center justify-center text-[#858585] gap-2 bg-[#1E1E1E]">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Loading editor...</span>
+                  </div>
+                }
+                options={{
+                  fontSize: 13,
+                  fontFamily: "'Menlo', 'Monaco', 'Consolas', monospace",
+                  minimap: { enabled: false },
+                  automaticLayout: true,
+                  tabSize: 2,
+                  scrollBeyondLastLine: false,
+                  smoothScrolling: true,
+                  cursorBlinking: 'smooth',
+                  padding: { top: 12 },
+                  wordWrap: wordWrap ? 'on' : 'off',
+                }}
               />
             )}
           </div>
@@ -599,6 +734,7 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
                 {([
                   { id: 'problems' as const, label: `Problems${openProblems.length ? ` (${openProblems.length})` : ''}` },
                   { id: 'output' as const, label: 'Output' },
+                  { id: 'debug_console' as const, label: 'Debug Console' },
                   { id: 'terminal' as const, label: 'Terminal' },
                 ]).map(t => (
                   <button
@@ -657,6 +793,12 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
               {bottomTab === 'output' && (
                 <p className="text-[#858585]">
                   Output streaming isn't wired into this panel yet — the live pipeline logs currently show on the Dashboard tab. Not built yet.
+                </p>
+              )}
+
+              {bottomTab === 'debug_console' && (
+                <p className="text-[#858585]">
+                  There's no debugger wired up here yet — this is a placeholder to match the IDE layout. Not built yet.
                 </p>
               )}
 
