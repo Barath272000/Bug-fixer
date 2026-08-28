@@ -153,10 +153,17 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
   const activeFile = openFiles.find(f => f.path === activePath) ?? null;
 
   const loadTree = useCallback(async () => {
-    setTreeLoading(true);
+    if (!projectId) {
+      setTreeError('No project selected yet.');
+      setTreeLoading(false);
+      return;
+    }
+
     setTreeError(null);
-        try {
-      const nodes = await fetchWorkspaceTree();
+    setTreeLoading(true);
+
+    try {
+      const nodes = await fetchWorkspaceTree(projectId);
       setTree(Array.isArray(nodes) ? nodes : []);
     } catch (err) {
       if (err instanceof ApiError) {
@@ -167,7 +174,7 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
     } finally {
       setTreeLoading(false);
     }
-  }, []);
+  }, [projectId]);
 
   useEffect(() => {
     void loadTree();
@@ -190,9 +197,13 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
     const existing = openFiles.find(f => f.path === path);
     if (existing) return;
 
+    if (!projectId) {
+      setFileError('No project selected yet.');
+      return;
+    }
     setFileLoading(true);
     try {
-      const result = await fetchWorkspaceFile(path);
+      const result = await fetchWorkspaceFile(projectId, path);
       setOpenFiles(prev => [
         ...prev,
         { path, content: result.content, savedContent: result.content },
@@ -225,10 +236,14 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
   const saveFile = useCallback(async (path: string) => {
     const file = openFiles.find(f => f.path === path);
     if (!file) return;
+    if (!projectId) {
+      setFileError('No project selected yet.');
+      return;
+    }
     setSaving(true);
     setFileError(null);
     try {
-      await saveWorkspaceFile(path, file.content);
+      await saveWorkspaceFile(projectId, path, file.content);
       setOpenFiles(prev =>
         prev.map(f => (f.path === path ? { ...f, savedContent: f.content } : f))
       );
@@ -287,10 +302,14 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
     const fullPath = creatingPath ? `${creatingPath}/${trimmed}` : trimmed;
     setCreatingPath(null);
 
+    if (!projectId) {
+      setFileError('No project selected yet.');
+      return;
+    }
     setSaving(true);
     setFileError(null);
     try {
-      await saveWorkspaceFile(fullPath, '');
+      await saveWorkspaceFile(projectId, fullPath, '');
       setOpenFiles(prev => [...prev, { path: fullPath, content: '', savedContent: '' }]);
       setActivePath(fullPath);
       await loadTree();
@@ -832,8 +851,8 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
               // (the fix may have created or touched files).
               setOpenFiles(prev => prev.map(f => (f.path === path ? { ...f } : f)));
               void loadTree();
-              if (openFiles.some(f => f.path === path)) {
-                void fetchWorkspaceFile(path).then(result => {
+              if (projectId && openFiles.some(f => f.path === path)) {
+                void fetchWorkspaceFile(projectId, path).then(result => {
                   setOpenFiles(prev => prev.map(f => (f.path === path ? { path, content: result.content, savedContent: result.content } : f)));
                 });
               }

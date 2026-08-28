@@ -4,15 +4,10 @@ import {
   Check,
   Layout,
   Sidebar as SidebarIcon,
-  Maximize2,
-  Minimize2,
   Minus,
   Square,
   X,
-  Search,
-  Settings,
-  Sparkles,
-  Bot
+  Bot,
 } from 'lucide-react';
 
 export interface MenuItem {
@@ -53,7 +48,7 @@ export interface IdeMenuBarProps {
 
 export const IdeMenuBar: React.FC<IdeMenuBarProps> = ({
   projectName = 'nexus-v3 - Antigravity IDE',
-  activeFile = 'auth_service.py',
+  activeFile: _activeFile = 'auth_service.py',
   isSidebarOpen = true,
   onToggleSidebar,
   isBottomPanelOpen = true,

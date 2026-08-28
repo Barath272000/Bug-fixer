@@ -88,7 +88,10 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({ projectId, activeModel, 
     try {
       // Write the proposed code to the real file via the workspace API, then
       // mark the proposal approved. Both must happen for "Apply" to mean anything.
-      await saveWorkspaceFile(proposal.file, proposal.proposedCode);
+      if (!projectId) {
+        throw new ApiError(0, 'No project selected yet.');
+      }
+      await saveWorkspaceFile(projectId, proposal.file, proposal.proposedCode);
       await setProposalStatus(proposal.id, 'APPROVED_AND_APPLIED');
       setProposalStatuses(prev => ({ ...prev, [proposal.id]: 'applied' }));
       onFileWritten?.(proposal.file);
