@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { 
   LayoutGrid, 
   Bug, 
@@ -30,9 +30,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setCollapsed,
   openLogBugModal
 }) => {
+  // Auto-hide: expand when the mouse touches the left edge of the screen,
+  // collapse again when the mouse leaves the sidebar itself.
+  const asideRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (!setCollapsed) return;
+    const EDGE_PX = 8;
+    const handleMouseMove = (e: MouseEvent) => {
+      if (e.clientX <= EDGE_PX) setCollapsed(false);
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, [setCollapsed]);
+
   return (
     <aside 
       id="sidebar" 
+      ref={asideRef}
+      onMouseLeave={() => setCollapsed?.(true)}
       className={`h-full bg-[#0D1117] border-r border-[#30363D] flex flex-col justify-between select-none transition-all duration-300 z-30 shrink-0 ${
         collapsed ? 'w-18' : 'w-64'
       }`}

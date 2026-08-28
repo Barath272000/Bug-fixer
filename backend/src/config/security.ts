@@ -16,9 +16,11 @@ export function encryptSecret(value: string): string {
 export function decryptSecret(value: string): string {
   const parts = value.split('.');
   if (parts.length !== 3) throw new Error('Encrypted secret format is invalid');
-  const iv = Buffer.from(parts[0], 'base64');
-  const tag = Buffer.from(parts[1], 'base64');
-  const encrypted = Buffer.from(parts[2], 'base64');
+  const [ivPart, tagPart, encryptedPart] = parts;
+  if (!ivPart || !tagPart || !encryptedPart) throw new Error('Encrypted secret format is invalid');
+  const iv = Buffer.from(ivPart, 'base64');
+  const tag = Buffer.from(tagPart, 'base64');
+  const encrypted = Buffer.from(encryptedPart, 'base64');
   const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf8');

@@ -8,7 +8,7 @@
  * once the login screen exists — search this file for "DEV_TOKEN".
  */
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 const API_PREFIX = '/api/v1';
 
 // TODO: replace with the token printed by `npm run seed:dev-user` (backend/prisma/seed-dev-user.ts)
@@ -20,7 +20,9 @@ export function getAuthToken(): string {
 
 /** Builds the ws(s):// URL for the realtime gateway, scoped to a project. */
 export function getRealtimeSocketUrl(projectId: string): string {
-  const wsBase = API_BASE_URL.replace(/^http/, 'ws');
+  const wsBase = API_BASE_URL
+    ? API_BASE_URL.replace(/^http/, 'ws')
+    : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
   const params = new URLSearchParams({ token: getAuthToken(), projectId });
   return `${wsBase}/realtime?${params.toString()}`;
 }

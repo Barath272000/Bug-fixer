@@ -1,6 +1,7 @@
 import {
   AlertTriangle,
   Check,
+  ChevronRight,
   Loader2,
   Send,
   Sparkles,
@@ -21,11 +22,13 @@ interface AgentPanelProps {
   activeModel: string;
   /** Called after a proposal is approved and written to disk, so the editor/tree can refresh. */
   onFileWritten?: (path: string) => void;
+  /** Called when the user clicks the panel's own minimize arrow. */
+  onCollapse?: () => void;
 }
 
 type ProposalUiStatus = 'idle' | 'applying' | 'applied' | 'rejected' | 'error';
 
-export const AgentPanel: React.FC<AgentPanelProps> = ({ projectId, activeModel, onFileWritten }) => {
+export const AgentPanel: React.FC<AgentPanelProps> = ({ projectId, activeModel, onFileWritten, onCollapse }) => {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<CopilotMessage[]>([]);
   const [input, setInput] = useState('');
@@ -115,7 +118,18 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({ projectId, activeModel, 
           <Sparkles className="w-3.5 h-3.5 text-[#9CDCFE]" />
           <span>Agent</span>
         </div>
-        <span className="text-[10px] text-[#6A6A6A] font-mono">{activeModel}</span>
+              <div className="flex items-center gap-2">
+          <span className="text-[10px] text-[#6A6A6A] font-mono">{activeModel}</span>
+          {onCollapse && (
+            <button
+              onClick={onCollapse}
+              className="text-[#858585] hover:text-white p-0.5"
+              title="Minimize Agent panel"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-3">

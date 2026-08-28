@@ -2,6 +2,7 @@ import {
   AlertCircle,
   AlertTriangle,
   CheckCircle2,
+  ChevronLeft,
   ChevronDown,
   ChevronRight,
   Files,
@@ -39,7 +40,7 @@ interface WorkspaceViewProps {
   bugs?: BugType[];
 }
 
-type ActivityView = 'explorer' | 'search' | 'git' | 'extensions';
+type ActivityView = 'explorer' | 'search' | 'git' | 'extensions' | 'none';
 type BottomTab = 'problems' | 'output' | 'terminal';
 
 interface OpenFile {
@@ -328,7 +329,7 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
             ]).map(({ id, icon: Icon, title }) => (
               <button
                 key={id}
-                onClick={() => setActivityView(id)}
+                onClick={() => setActivityView(prev => (prev === id ? 'none' : id))}
                 title={title}
                 className={`relative w-11 h-9 flex items-center justify-center ${
                   activityView === id ? 'text-white' : 'text-[#858585] hover:text-white'
@@ -376,6 +377,13 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
                 title="Refresh"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${treeLoading ? 'animate-spin' : ''}`} />
+              </button>
+              <button
+                onClick={() => setActivityView('none')}
+                className="hover:text-white p-1"
+                title="Minimize Explorer"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
@@ -672,10 +680,11 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
         )}
         </div>
 
-        {agentPanelOpen && (
+                {agentPanelOpen && (
           <AgentPanel
             projectId={projectId}
             activeModel={activeModel}
+            onCollapse={() => setAgentPanelOpen(false)}
             onFileWritten={(path) => {
               // Refresh the file if it's currently open, and always refresh the tree
               // (the fix may have created or touched files).
@@ -688,6 +697,17 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
               }
             }}
           />
+        )}
+
+        {!agentPanelOpen && (
+          <button
+            onClick={() => setAgentPanelOpen(true)}
+            className="w-6 shrink-0 bg-[#181818] border-l border-[#2D2D2D] flex flex-col items-center justify-center gap-2 text-[#858585] hover:text-white"
+            title="Expand Agent panel"
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+            <Sparkles className="w-3.5 h-3.5" />
+          </button>
         )}
       </div>
 
