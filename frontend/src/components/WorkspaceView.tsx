@@ -102,9 +102,9 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
   const loadTree = useCallback(async () => {
     setTreeLoading(true);
     setTreeError(null);
-    try {
+        try {
       const nodes = await fetchWorkspaceTree();
-      setTree(nodes);
+      setTree(Array.isArray(nodes) ? nodes : []);
     } catch (err) {
       if (err instanceof ApiError) {
         setTreeError(err.message);

@@ -63,9 +63,9 @@ function toFrontendBug(b: BackendBug): Bug {
 }
 
 export async function getOrCreateDefaultProject(): Promise<string> {
-  const list = await apiRequest<{ items: BackendProject[] }>('/projects');
-  if (list.items.length > 0) return list.items[0].id;
-
+  const list = await apiRequest<{ items?: BackendProject[] }>('/projects');
+  if (list.items && list.items.length > 0) return list.items[0].id;
+  
   const created = await apiRequest<BackendProject>('/projects', {
     method: 'POST',
     body: { name: 'Default Project', sourceType: 'PASTE' },
