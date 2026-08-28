@@ -20,12 +20,25 @@ import { settingsRoutes } from './modules/settings/settings.routes.js';
 import { githubRoutes } from './modules/integrations/github/github.routes.js';
 import { uploadsRoutes } from './modules/uploads/upload.routes.js';
 
+
+function resolveAllowedOrigins(): string[] {
+  const configured = env.CORS_ORIGIN.split(',').map((value) => value.trim()).filter(Boolean);
+
+  const codespaceName = process.env.CODESPACE_NAME;
+  const forwardingDomain = process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN;
+  if (codespaceName && forwardingDomain) {
+    configured.push(`https://${codespaceName}-3000.${forwardingDomain}`);
+  }
+
+  return [...new Set(configured)];
+}
+
 export function createApp(): express.Express {
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
   app.use(helmet({ crossOriginResourcePolicy: false }));
-  app.use(cors({ origin: env.CORS_ORIGIN.split(',').map((value) => value.trim()), credentials: true }));
+  app.use(cors({ origin: resolveAllowedOrigins(), credentials: true }));
   app.use(express.json({ limit: '2mb' }));
   app.use(express.urlencoded({ extended: true, limit: '2mb' }));
   app.use(requestIdMiddleware);
