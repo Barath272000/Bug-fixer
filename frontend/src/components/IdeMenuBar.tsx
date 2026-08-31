@@ -40,6 +40,7 @@ export interface IdeMenuBarProps {
   onToggleDiff?: () => void;
   onOpenModelSelector?: () => void;
   onOpenCopilotSettings?: () => void;
+  onOpenGoToFile?: () => void;
   wordWrap?: boolean;
   onToggleWordWrap?: () => void;
   autoSave?: boolean;
@@ -64,6 +65,7 @@ export const IdeMenuBar: React.FC<IdeMenuBarProps> = ({
   onToggleDiff,
   onOpenModelSelector,
   onOpenCopilotSettings,
+  onOpenGoToFile,
   wordWrap = false,
   onToggleWordWrap,
   autoSave = true,
@@ -306,7 +308,7 @@ export const IdeMenuBar: React.FC<IdeMenuBarProps> = ({
           ]
         },
         { id: 'sep_g2', label: '', separator: true },
-        { id: 'go_to_file', label: 'Go to File...', shortcut: 'Ctrl+P' },
+        { id: 'go_to_file', label: 'Go to File...', shortcut: 'Ctrl+P', action: onOpenGoToFile },
         { id: 'go_to_sym_ws', label: 'Go to Symbol in Workspace...', shortcut: 'Ctrl+T' },
         { id: 'sep_g3', label: '', separator: true },
         { id: 'go_to_sym_ed', label: 'Go to Symbol in Editor...', shortcut: 'Ctrl+Shift+O' },

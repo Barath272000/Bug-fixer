@@ -1,5 +1,9 @@
 #!/bin/bash
-set -e
+set -euo pipefail
+
+BACKEND_PORT=4000
+FRONTEND_PORT=3000
+APP_ROOT="/workspaces/Bug-fixer"
 
 stop_existing_service() {
   local port="$1"
@@ -29,33 +33,88 @@ stop_existing_service() {
   exit 1
 }
 
-stop_existing_service 4000
-stop_existing_service 3000
+wait_for_http() {
+  local url="$1"
+  local name="$2"
+  local max_attempts="${3:-60}"
+  local attempt=1
+
+  echo "Waiting for $name at $url..."
+  while (( attempt <= max_attempts )); do
+    if curl -fsS "$url" >/dev/null 2>&1; then
+      echo "$name is ready at $url"
+      return 0
+    fi
+    sleep 1
+    ((attempt++))
+  done
+
+  echo "ERROR: $name did not become ready at $url within $(($max_attempts)) seconds."
+  return 1
+}
+
+print_urls() {
+  local local_frontend="http://localhost:${FRONTEND_PORT}"
+  local local_backend="http://localhost:${BACKEND_PORT}"
+  echo ""
+  echo "Local URLs:"
+  echo "  Frontend: $local_frontend"
+  echo "  Backend:  $local_backend"
+
+  if [[ -n "${CODESPACE_NAME:-}" && -n "${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-}" ]]; then
+    FRONTEND_FORWARD_URL="https://${CODESPACE_NAME}-${FRONTEND_PORT}.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}"
+    BACKEND_FORWARD_URL="https://${CODESPACE_NAME}-${BACKEND_PORT}.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}"
+    echo ""
+    echo "GitHub Codespace forwarded URLs:"
+    echo "  Frontend: ${FRONTEND_FORWARD_URL}"
+    echo "  Backend:  ${BACKEND_FORWARD_URL}"
+  fi
+}
+
+
+stop_existing_service "$BACKEND_PORT"
+stop_existing_service "$FRONTEND_PORT"
 
 # Ensure Postgres and Redis are up
-cd backend
+cd "$APP_ROOT/backend"
 docker compose up postgres redis -d
 
 # Cleanup: kill both processes when this script exits (e.g. Ctrl+C)
 cleanup() {
   echo "Stopping backend and frontend..."
-  kill "$BACKEND_PID" "$FRONTEND_PID" 2>/dev/null
+  if [[ -n "${BACKEND_PID:-}" ]]; then
+    kill "$BACKEND_PID" 2>/dev/null || true
+  fi
+  if [[ -n "${FRONTEND_PID:-}" ]]; then
+    kill "$FRONTEND_PID" 2>/dev/null || true
+  fi
   exit 0
 }
 trap cleanup SIGINT SIGTERM
 
 # Start backend
-cd /workspaces/Bug-fixer/backend
-npm run dev &
+cd "$APP_ROOT/backend"
+npm run dev > /tmp/bugfixer-backend.log 2>&1 &
 BACKEND_PID=$!
 
 # Start frontend
-cd /workspaces/Bug-fixer/frontend
-npm run dev -- --strictPort &
+cd "$APP_ROOT/frontend"
+npm run dev -- --strictPort > /tmp/bugfixer-frontend.log 2>&1 &
 FRONTEND_PID=$!
 
-echo "Backend running (PID $BACKEND_PID) on http://localhost:4000"
-echo "Frontend running (PID $FRONTEND_PID) on http://localhost:3000"
-echo "Press Ctrl+C to stop both."
+if ! wait_for_http "http://localhost:${BACKEND_PORT}/health" "backend" 60; then
+  echo "Backend log tail:"
+  tail -n 80 /tmp/bugfixer-backend.log || true
+  exit 1
+fi
 
+if ! wait_for_http "http://localhost:${FRONTEND_PORT}" "frontend" 60; then
+  echo "Frontend log tail:"
+  tail -n 80 /tmp/bugfixer-frontend.log || true
+  exit 1
+fi
+
+print_urls
+
+echo "Press Ctrl+C to stop both."
 wait

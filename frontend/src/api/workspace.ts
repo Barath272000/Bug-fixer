@@ -51,3 +51,59 @@ export async function saveWorkspaceFile(projectId: string, path: string, content
     body: { path, content },
   });
 }
+
+export interface WorkspaceExecResult {
+  stdout: string;
+  stderr: string;
+  code: number;
+  durationMs: number;
+}
+
+export async function execWorkspaceCommand(projectId: string, command: string): Promise<WorkspaceExecResult> {
+  const workspaceId = await resolveWorkspaceId(projectId);
+  return apiRequest<WorkspaceExecResult>(`/workspaces/${workspaceId}/exec`, {
+    method: 'POST',
+    body: { command },
+  });
+}
+
+export interface WorkspaceSearchMatch {
+  file: string;
+  line: number;
+  preview: string;
+}
+
+export async function searchWorkspaceFiles(projectId: string, query: string): Promise<WorkspaceSearchMatch[]> {
+  const workspaceId = await resolveWorkspaceId(projectId);
+  return apiRequest<WorkspaceSearchMatch[]>(`/workspaces/${workspaceId}/search?q=${encodeURIComponent(query)}`);
+}
+
+export interface WorkspaceGitStatusEntry {
+  path: string;
+  status: string;
+}
+
+export interface WorkspaceGitStatus {
+  branch: string;
+  entries: WorkspaceGitStatusEntry[];
+}
+
+export async function fetchWorkspaceGitStatus(projectId: string): Promise<WorkspaceGitStatus> {
+  const workspaceId = await resolveWorkspaceId(projectId);
+  return apiRequest<WorkspaceGitStatus>(`/workspaces/${workspaceId}/git/status`);
+}
+
+export async function fetchWorkspaceGitDiff(projectId: string, path?: string): Promise<string> {
+  const workspaceId = await resolveWorkspaceId(projectId);
+  const suffix = path ? `?path=${encodeURIComponent(path)}` : '';
+  const result = await apiRequest<{ diff: string }>(`/workspaces/${workspaceId}/git/diff${suffix}`);
+  return result.diff;
+}
+
+export async function commitWorkspaceChanges(projectId: string, message: string): Promise<{ committed: boolean }> {
+  const workspaceId = await resolveWorkspaceId(projectId);
+  return apiRequest<{ committed: boolean }>(`/workspaces/${workspaceId}/git/commit`, {
+    method: 'POST',
+    body: { message },
+  });
+}

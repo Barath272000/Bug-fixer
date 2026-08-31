@@ -12,6 +12,7 @@ import {
   Folder,
   FolderPlus,
   GitBranch,
+  GitCommit,
   Loader2,
   Package,
   PanelBottom,
@@ -22,13 +23,20 @@ import {
   X,
 } from 'lucide-react';
 import Editor, { OnMount } from '@monaco-editor/react';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Bug as BugType } from '../types';
 import {
   fetchWorkspaceFile,
   fetchWorkspaceTree,
   saveWorkspaceFile,
   WorkspaceTreeNode,
+  execWorkspaceCommand,
+  searchWorkspaceFiles,
+  WorkspaceSearchMatch,
+  fetchWorkspaceGitStatus,
+  fetchWorkspaceGitDiff,
+  commitWorkspaceChanges,
+  WorkspaceGitStatus,
 } from '../api/workspace';
 import { ApiError } from '../api/client';
 import { AgentPanel } from './Agentpanel';
@@ -151,6 +159,147 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
   const newFileInputRef = useRef<HTMLInputElement>(null);
 
   const activeFile = openFiles.find(f => f.path === activePath) ?? null;
+
+  // --- Find in Files (real) ---
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<WorkspaceSearchMatch[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+
+  const runSearch = useCallback(async (query: string) => {
+    if (!projectId || !query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    setSearchLoading(true);
+    setSearchError(null);
+    try {
+      const results = await searchWorkspaceFiles(projectId, query);
+      setSearchResults(results);
+    } catch (err) {
+      setSearchError(err instanceof ApiError ? err.message : 'Search failed.');
+    } finally {
+      setSearchLoading(false);
+    }
+  }, [projectId]);
+
+  // --- Source Control (real) ---
+  const [gitStatusData, setGitStatusData] = useState<WorkspaceGitStatus | null>(null);
+  const [gitLoading, setGitLoading] = useState(false);
+  const [gitError, setGitError] = useState<string | null>(null);
+  const [commitMessage, setCommitMessage] = useState('');
+  const [committing, setCommitting] = useState(false);
+  const [diffPath, setDiffPath] = useState<string | null>(null);
+  const [diffContent, setDiffContent] = useState<string>('');
+  const [diffLoading, setDiffLoading] = useState(false);
+
+  const loadGitStatus = useCallback(async () => {
+    if (!projectId) return;
+    setGitLoading(true);
+    setGitError(null);
+    try {
+      const status = await fetchWorkspaceGitStatus(projectId);
+      setGitStatusData(status);
+    } catch (err) {
+      setGitError(err instanceof ApiError ? err.message : 'Could not load source control status.');
+    } finally {
+      setGitLoading(false);
+    }
+  }, [projectId]);
+
+  const viewDiff = async (path: string) => {
+    if (!projectId) return;
+    setDiffPath(path);
+    setDiffLoading(true);
+    try {
+      const diff = await fetchWorkspaceGitDiff(projectId, path);
+      setDiffContent(diff);
+    } catch (err) {
+      setDiffContent(err instanceof ApiError ? err.message : 'Could not load diff.');
+    } finally {
+      setDiffLoading(false);
+    }
+  };
+
+  const handleCommit = async () => {
+    if (!projectId || !commitMessage.trim()) return;
+    setCommitting(true);
+    try {
+      await commitWorkspaceChanges(projectId, commitMessage);
+      setCommitMessage('');
+      setDiffPath(null);
+      await loadGitStatus();
+    } catch (err) {
+      setGitError(err instanceof ApiError ? err.message : 'Commit failed.');
+    } finally {
+      setCommitting(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activityView === 'git') void loadGitStatus();
+  }, [activityView, loadGitStatus]);
+
+  // --- Terminal (real) ---
+  interface TerminalEntry { command: string; stdout: string; stderr: string; code: number }
+  const [terminalHistory, setTerminalHistory] = useState<TerminalEntry[]>([]);
+  const [terminalInput, setTerminalInput] = useState('');
+  const [terminalRunning, setTerminalRunning] = useState(false);
+  const terminalEndRef = useRef<HTMLDivElement>(null);
+
+  const runTerminalCommand = async (command: string) => {
+    if (!projectId || !command.trim() || terminalRunning) return;
+    setTerminalInput('');
+    setTerminalRunning(true);
+    try {
+      const result = await execWorkspaceCommand(projectId, command);
+      setTerminalHistory(prev => [...prev, { command, stdout: result.stdout, stderr: result.stderr, code: result.code }]);
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'Command failed to run.';
+      setTerminalHistory(prev => [...prev, { command, stdout: '', stderr: message, code: 1 }]);
+    } finally {
+      setTerminalRunning(false);
+    }
+  };
+
+  useEffect(() => {
+    terminalEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [terminalHistory]);
+
+  // --- Go to File quick-picker (Ctrl+P) ---
+  const [isGoToFileOpen, setIsGoToFileOpen] = useState(false);
+  const [goToFileQuery, setGoToFileQuery] = useState('');
+
+  const flatFiles = useMemo(() => {
+    const out: string[] = [];
+    const walkTree = (nodes: WorkspaceTreeNode[]) => {
+      for (const node of nodes) {
+        if (node.type === 'file') out.push(node.path);
+        else if (node.children) walkTree(node.children);
+      }
+    };
+    walkTree(tree);
+    return out;
+  }, [tree]);
+
+  const goToFileResults = useMemo(() => {
+    const q = goToFileQuery.trim().toLowerCase();
+    if (!q) return flatFiles.slice(0, 30);
+    return flatFiles.filter(f => f.toLowerCase().includes(q)).slice(0, 30);
+  }, [flatFiles, goToFileQuery]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+        e.preventDefault();
+        setGoToFileQuery('');
+        setIsGoToFileOpen(true);
+      }
+      if (e.key === 'Escape') setIsGoToFileOpen(false);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   const loadTree = useCallback(async () => {
     if (!projectId) {
@@ -451,6 +600,10 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
         onToggleWordWrap={() => setWordWrap(w => !w)}
         autoSave={autoSave}
         onToggleAutoSave={() => setAutoSave(a => !a)}
+        onOpenGoToFile={() => {
+          setGoToFileQuery('');
+          setIsGoToFileOpen(true);
+        }}
       />
       <div className="flex-1 flex overflow-hidden">
         {/* ACTIVITY BAR */}
@@ -587,20 +740,155 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
             <div className="px-3 py-2.5 text-[11px] font-bold tracking-wider uppercase text-[#BBBBBB] border-b border-[#333333]">
               Search
             </div>
-            <div className="p-3 text-[#858585] leading-relaxed">
-              In-workspace search isn't wired up yet — it needs a search endpoint on the backend. Not built yet.
+            <div className="p-2 border-b border-[#333333]">
+              <input
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') void runSearch(searchQuery);
+                }}
+                placeholder="Search in workspace..."
+                className="w-full bg-[#3C3C3C] text-white text-xs px-2 py-1.5 rounded outline-none border border-transparent focus:border-[#007ACC]"
+              />
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {searchLoading && (
+                <div className="flex items-center gap-2 px-3 py-3 text-[#858585]">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Searching...</span>
+                </div>
+              )}
+              {searchError && (
+                <div className="mx-2 my-2 p-2 rounded bg-[#4B1113]/30 border border-[#F48771]/40 text-[#F48771] text-[11px]">
+                  {searchError}
+                </div>
+              )}
+              {!searchLoading && !searchError && searchQuery && searchResults.length === 0 && (
+                <p className="px-3 py-3 text-[#858585]">No results found.</p>
+              )}
+              {searchResults.length > 0 && (
+                <div className="px-2 py-1 text-[11px] text-[#858585]">
+                  {searchResults.length} match{searchResults.length === 1 ? '' : 'es'}
+                </div>
+              )}
+              {searchResults.map((match, idx) => (
+                <button
+                  key={`${match.file}-${match.line}-${idx}`}
+                  onClick={() => {
+                    setActivityView('explorer');
+                    void openFile(match.file);
+                  }}
+                  className="w-full text-left px-3 py-1.5 hover:bg-[#2A2D2E] block"
+                >
+                  <div className="flex items-center gap-1.5 text-[#CCCCCC]">
+                    <FileCode className={`w-3 h-3 shrink-0 ${fileIconColor(match.file)}`} />
+                    <span className="truncate font-mono">{match.file}</span>
+                    <span className="text-[#858585] shrink-0">:{match.line}</span>
+                  </div>
+                  <div className="text-[#858585] font-mono truncate pl-4.5 mt-0.5">{match.preview}</div>
+                </button>
+              ))}
             </div>
           </div>
         )}
 
         {activityView === 'git' && (
           <div className="w-64 bg-[#252526] border-r border-[#191919] shrink-0 flex flex-col text-xs">
-            <div className="px-3 py-2.5 text-[11px] font-bold tracking-wider uppercase text-[#BBBBBB] border-b border-[#333333]">
-              Source Control
+            <div className="px-3 py-2.5 flex items-center justify-between text-[11px] font-bold tracking-wider uppercase text-[#BBBBBB] border-b border-[#333333]">
+              <span>Source Control</span>
+              <button onClick={() => void loadGitStatus()} className="text-[#858585] hover:text-white p-0.5" title="Refresh">
+                <RefreshCw className={`w-3 h-3 ${gitLoading ? 'animate-spin' : ''}`} />
+              </button>
             </div>
-            <div className="p-3 text-[#858585] leading-relaxed">
-              There's a git.service.ts on the backend for repo integrations, but it isn't exposed as a diffable source-control panel here yet. Not built yet.
-            </div>
+
+            {gitError && (
+              <div className="m-2 p-2 rounded bg-[#4B1113]/30 border border-[#F48771]/40 text-[#F48771] text-[11px]">
+                {gitError}
+              </div>
+            )}
+
+            {gitLoading && !gitStatusData && (
+              <div className="flex items-center gap-2 px-3 py-3 text-[#858585]">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>Loading status...</span>
+              </div>
+            )}
+
+            {gitStatusData && (
+              <>
+                <div className="px-3 py-2 flex items-center gap-1.5 text-[#858585] border-b border-[#333333]">
+                  <GitBranch className="w-3.5 h-3.5" />
+                  <span className="font-mono">{gitStatusData.branch}</span>
+                </div>
+
+                <div className="p-2 border-b border-[#333333] space-y-1.5">
+                  <textarea
+                    value={commitMessage}
+                    onChange={e => setCommitMessage(e.target.value)}
+                    placeholder="Commit message"
+                    rows={2}
+                    className="w-full bg-[#3C3C3C] text-white text-xs px-2 py-1.5 rounded outline-none resize-none border border-transparent focus:border-[#007ACC]"
+                  />
+                  <button
+                    onClick={() => void handleCommit()}
+                    disabled={committing || !commitMessage.trim() || gitStatusData.entries.length === 0}
+                    className="w-full flex items-center justify-center gap-1.5 bg-[#007ACC] hover:bg-[#0062A3] disabled:opacity-50 disabled:cursor-default text-white px-2 py-1.5 rounded font-medium"
+                  >
+                    {committing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <GitCommit className="w-3.5 h-3.5" />}
+                    <span>Commit</span>
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto">
+                  {gitStatusData.entries.length === 0 ? (
+                    <p className="px-3 py-3 text-[#858585]">No changes since last commit.</p>
+                  ) : (
+                    gitStatusData.entries.map(entry => (
+                      <button
+                        key={entry.path}
+                        onClick={() => void viewDiff(entry.path)}
+                        className={`w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[#2A2D2E] text-left ${diffPath === entry.path ? 'bg-[#37373D]' : ''}`}
+                      >
+                        <span className="w-4 text-center font-bold text-[#CCA700] shrink-0">{entry.status || '?'}</span>
+                        <span className="truncate font-mono text-[#CCCCCC]">{entry.path}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+
+                {diffPath && (
+                  <div className="border-t border-[#333333] max-h-56 overflow-y-auto">
+                    <div className="px-3 py-1.5 text-[11px] text-[#858585] font-mono border-b border-[#333333] flex items-center justify-between">
+                      <span className="truncate">{diffPath}</span>
+                      <button onClick={() => setDiffPath(null)} className="hover:text-white shrink-0 ml-2">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                    {diffLoading ? (
+                      <div className="flex items-center gap-2 px-3 py-3 text-[#858585]">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Loading diff...</span>
+                      </div>
+                    ) : (
+                      <pre className="px-3 py-2 font-mono text-[11px] whitespace-pre-wrap">
+                        {diffContent.split('\n').map((line, idx) => (
+                          <div
+                            key={idx}
+                            className={
+                              line.startsWith('+') && !line.startsWith('+++') ? 'text-[#4EC9B0]' :
+                              line.startsWith('-') && !line.startsWith('---') ? 'text-[#F48771]' :
+                              'text-[#858585]'
+                            }
+                          >
+                            {line || ' '}
+                          </div>
+                        ))}
+                      </pre>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
 
@@ -822,9 +1110,43 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
               )}
 
               {bottomTab === 'terminal' && (
-                <p className="text-[#858585]">
-                  There's no real terminal/shell backend wired up here yet — this is a placeholder to match the IDE layout. Not built yet.
-                </p>
+                <div className="flex flex-col h-full font-mono">
+                  <div className="flex-1 overflow-y-auto space-y-2 pb-1">
+                    {terminalHistory.length === 0 && (
+                      <p className="text-[#858585] font-sans">
+                        Runs a real command inside a sandboxed Docker container, mounted to this workspace.
+                      </p>
+                    )}
+                    {terminalHistory.map((entry, idx) => (
+                      <div key={idx}>
+                        <div className="flex items-center gap-1.5 text-[#4EC9B0]">
+                          <span>$</span>
+                          <span>{entry.command}</span>
+                        </div>
+                        {entry.stdout && <pre className="whitespace-pre-wrap text-[#CCCCCC]">{entry.stdout}</pre>}
+                        {entry.stderr && <pre className="whitespace-pre-wrap text-[#F48771]">{entry.stderr}</pre>}
+                        {entry.code !== 0 && (
+                          <div className="text-[#F48771] text-[11px]">exit code {entry.code}</div>
+                        )}
+                      </div>
+                    ))}
+                    <div ref={terminalEndRef} />
+                  </div>
+                  <div className="flex items-center gap-1.5 border-t border-[#2D2D2D] pt-1.5 shrink-0">
+                    <span className="text-[#4EC9B0]">$</span>
+                    <input
+                      value={terminalInput}
+                      onChange={e => setTerminalInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') void runTerminalCommand(terminalInput);
+                      }}
+                      disabled={terminalRunning || !projectId}
+                      placeholder={terminalRunning ? 'Running...' : 'Type a command and press Enter'}
+                      className="flex-1 bg-transparent text-white outline-none disabled:opacity-50"
+                    />
+                    {terminalRunning && <Loader2 className="w-3.5 h-3.5 animate-spin text-[#858585]" />}
+                  </div>
+                </div>
               )}
             </div>
           </div>
@@ -904,6 +1226,57 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
           <span className="hidden sm:inline">UTF-8</span>
         </div>
       </footer>
+
+      {isGoToFileOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-start justify-center pt-24"
+          onClick={() => setIsGoToFileOpen(false)}
+        >
+          <div
+            className="w-full max-w-lg bg-[#252526] border border-[#454545] rounded-lg shadow-2xl overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            <input
+              autoFocus
+              value={goToFileQuery}
+              onChange={e => setGoToFileQuery(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && goToFileResults[0]) {
+                  setIsGoToFileOpen(false);
+                  setActivityView('explorer');
+                  void openFile(goToFileResults[0]);
+                }
+                if (e.key === 'Escape') setIsGoToFileOpen(false);
+              }}
+              placeholder="Go to File..."
+              className="w-full bg-transparent text-white text-sm px-4 py-3 outline-none border-b border-[#333333]"
+            />
+            <div className="max-h-80 overflow-y-auto py-1">
+              {goToFileResults.length === 0 && (
+                <p className="px-4 py-3 text-[#858585] text-xs">No matching files.</p>
+              )}
+              {goToFileResults.map(path => {
+                const name = path.split('/').pop() ?? path;
+                return (
+                  <button
+                    key={path}
+                    onClick={() => {
+                      setIsGoToFileOpen(false);
+                      setActivityView('explorer');
+                      void openFile(path);
+                    }}
+                    className="w-full flex items-center gap-2 px-4 py-2 hover:bg-[#2A2D2E] text-left text-xs"
+                  >
+                    <FileCode className={`w-3.5 h-3.5 shrink-0 ${fileIconColor(name)}`} />
+                    <span className="text-[#CCCCCC]">{name}</span>
+                    <span className="text-[#858585] truncate">{path}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
