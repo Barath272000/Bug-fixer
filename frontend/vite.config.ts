@@ -11,6 +11,17 @@ export default defineConfig({
   server: {
     port: 3000,
     host: '0.0.0.0',
+    // Vite 6+ rejects requests whose Host header it doesn't recognize.
+    // Codespaces/devcontainer forwarding uses a rotating *.app.github.dev
+    // (or *.preview.app.github.dev) hostname, so allow that suffix explicitly
+    // instead of Vite silently refusing to serve the page.
+    allowedHosts: ['.app.github.dev', '.githubpreview.dev', 'localhost'],
+    hmr: {
+      // Through the Codespaces HTTPS forwarding proxy, the browser always
+      // talks on 443 even though Vite listens on 3000 internally — without
+      // this, the HMR websocket tries the wrong port and live-reload breaks.
+      clientPort: 443,
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:4000',

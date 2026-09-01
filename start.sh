@@ -56,6 +56,8 @@ wait_for_http() {
 print_urls() {
   local local_frontend="http://localhost:${FRONTEND_PORT}"
   local local_backend="http://localhost:${BACKEND_PORT}"
+  local open_url="$local_frontend"
+
   echo ""
   echo "Local URLs:"
   echo "  Frontend: $local_frontend"
@@ -64,13 +66,63 @@ print_urls() {
   if [[ -n "${CODESPACE_NAME:-}" && -n "${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-}" ]]; then
     FRONTEND_FORWARD_URL="https://${CODESPACE_NAME}-${FRONTEND_PORT}.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}"
     BACKEND_FORWARD_URL="https://${CODESPACE_NAME}-${BACKEND_PORT}.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}"
+    open_url="$FRONTEND_FORWARD_URL"
     echo ""
     echo "GitHub Codespace forwarded URLs:"
     echo "  Frontend: ${FRONTEND_FORWARD_URL}"
     echo "  Backend:  ${BACKEND_FORWARD_URL}"
   fi
+
+  echo ""
+  echo "Open this in your browser: ${open_url}"
 }
 
+write_backend_env() {
+  local frontend_origin="http://localhost:${FRONTEND_PORT}"
+  if [[ -n "${CODESPACE_NAME:-}" && -n "${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-}" ]]; then
+    frontend_origin="${frontend_origin},https://${CODESPACE_NAME}-${FRONTEND_PORT}.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}"
+  fi
+
+  cat > "$APP_ROOT/backend/.env" <<EOF
+NODE_ENV=development
+PORT=4000
+CORS_ORIGIN=${frontend_origin}
+DATABASE_URL=postgresql://bugfixai:bugfixai@localhost:5432/bugfixai?schema=public
+REDIS_URL=redis://localhost:6379
+JWT_SECRET=bugfixai-local-development-jwt-secret-2026
+JWT_EXPIRES_IN=1h
+REFRESH_TOKEN_EXPIRES_IN=30d
+ENCRYPTION_KEY=bugfixai-local-development-encryption-key-2026
+STORAGE_ROOT=./storage
+SANDBOX_WORK_ROOT=./sandbox-work
+MAX_UPLOAD_BYTES=524288000
+SANDBOX_TIMEOUT_MS=300000
+SANDBOX_CPU_LIMIT=2
+SANDBOX_MEMORY_LIMIT=4g
+SANDBOX_PIDS_LIMIT=256
+SANDBOX_NETWORK_MODE=none
+GITHUB_API_URL=https://api.github.com
+OPENAI_BASE_URL=https://api.openai.com/v1
+ANTHROPIC_BASE_URL=https://api.anthropic.com
+GOOGLE_BASE_URL=https://generativelanguage.googleapis.com/v1beta
+GROQ_BASE_URL=https://api.groq.com/openai/v1
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
+DEFAULT_AI_PROVIDER=openai
+DEFAULT_AI_MODEL=gpt-4o-mini
+LOG_LEVEL=info
+EOF
+}
+
+write_frontend_env() {
+  local backend_url="http://localhost:${BACKEND_PORT}"
+
+  cat > "$APP_ROOT/frontend/.env" <<EOF
+VITE_API_BASE_URL=${backend_url}
+NODE_ENV=development
+# Stable local dev config: localhost is the correct backend for this workspace.
+EOF
+}
 
 stop_existing_service "$BACKEND_PORT"
 stop_existing_service "$FRONTEND_PORT"
@@ -91,6 +143,9 @@ cleanup() {
   exit 0
 }
 trap cleanup SIGINT SIGTERM
+
+write_backend_env
+write_frontend_env
 
 # Start backend
 cd "$APP_ROOT/backend"

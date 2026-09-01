@@ -55,9 +55,16 @@ export function createAnalysisWorker(gateway: RealtimeGateway) {
           if (!phase)
             throw new Error(`Missing pipeline phase ${definition.number}`);
 
-          await prisma.pipelinePhase.update({
+          const runningPhase = await prisma.pipelinePhase.update({
             where: { id: phase.id },
             data: { status: 'RUNNING', startedAt: new Date() },
+          });
+
+          gateway.publish(projectId, {
+            type: realtimeEvents.phaseStarted,
+            projectId,
+            analysisId,
+            payload: runningPhase,
           });
 
           await addLog(
@@ -210,7 +217,7 @@ export function createAnalysisWorker(gateway: RealtimeGateway) {
               });
           }
 
-          await prisma.pipelinePhase.update({
+          const completedPhase = await prisma.pipelinePhase.update({
             where: { id: phase.id },
             data: {
               status: 'COMPLETED',
@@ -223,7 +230,7 @@ export function createAnalysisWorker(gateway: RealtimeGateway) {
             type: realtimeEvents.phaseProgress,
             projectId,
             analysisId,
-            payload: { phase: definition.number, status: 'completed' },
+            payload: completedPhase,
           });
 
           await addLog(

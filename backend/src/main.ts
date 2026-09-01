@@ -16,11 +16,10 @@ async function bootstrap(): Promise<void> {
     await ensureStorageDirectories();
     await connectDatabase();
     await connectRedis();
-    server.listen(env.PORT, '0.0.0.0', () => process.stdout.write(`BugFixAI backend listening on ${env.PORT}
-`));
+    await gateway.subscribeToRedis();
+    server.listen(env.PORT, '0.0.0.0', () => process.stdout.write(`BugFixAI backend listening on ${env.PORT}\n`));
   } catch (error) {
-    process.stderr.write(`${error instanceof Error ? error.stack ?? error.message : String(error)}
-`);
+    process.stderr.write(`${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
     process.exit(1);
   }
 }
@@ -28,12 +27,12 @@ async function bootstrap(): Promise<void> {
 async function shutdown(signal: string): Promise<void> {
   try {
     server.close();
+    await gateway.closeRedisSubscription();
     await disconnectRedis();
     await disconnectDatabase();
     process.exit(signal === 'SIGINT' || signal === 'SIGTERM' ? 0 : 1);
   } catch (error) {
-    process.stderr.write(`${error instanceof Error ? error.stack ?? error.message : String(error)}
-`);
+    process.stderr.write(`${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
     process.exit(1);
   }
 }

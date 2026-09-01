@@ -28,6 +28,7 @@ function resolveAllowedOrigins(): string[] {
   const forwardingDomain = process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN;
   if (codespaceName && forwardingDomain) {
     configured.push(`https://${codespaceName}-3000.${forwardingDomain}`);
+    configured.push(`https://${codespaceName}-4000.${forwardingDomain}`);
   }
 
   return [...new Set(configured)];
@@ -38,7 +39,37 @@ export function createApp(): express.Express {
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
   app.use(helmet({ crossOriginResourcePolicy: false }));
-  app.use(cors({ origin: resolveAllowedOrigins(), credentials: true }));
+  app.use(cors({
+    origin: (requestOrigin, callback) => {
+      if (!requestOrigin) {
+        callback(null, true);
+        return;
+      }
+
+      const allowedOrigins = resolveAllowedOrigins();
+      const hostname = (() => {
+        try {
+          return new URL(requestOrigin).hostname;
+        } catch {
+          return requestOrigin;
+        }
+      })();
+
+      const isLocalhost = /^localhost(?::\d+)?$/.test(hostname) || hostname === '127.0.0.1';
+      const isCodespaceHost = /\.app\.github\.dev$/i.test(hostname) || /\.githubpreview\.dev$/i.test(hostname);
+      const isExplicitlyAllowed = allowedOrigins.includes(requestOrigin);
+
+      if (isExplicitlyAllowed || isLocalhost || isCodespaceHost) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  }));
   app.use(express.json({ limit: '2mb' }));
   app.use(express.urlencoded({ extended: true, limit: '2mb' }));
   app.use(requestIdMiddleware);

@@ -43,13 +43,46 @@ function backendPhaseStatus(status: BackendPhase['status']): PipelinePhase['stat
   }
 }
 
+interface RecentRun {
+  id: string;
+  projectId: string;
+  projectName: string;
+  status: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+  createdAt: string;
+  durationMs: number | null;
+  bugsFound: number;
+  bugsFixed: number;
+}
+
+interface RecentRunsResponse {
+  items: RecentRun[];
+  stats: { totalRuns: number; fixed: number; failed: number };
+}
+
+function formatRelativeTime(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
+function formatDuration(ms: number): string {
+  const totalSeconds = Math.round(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+}
+
 
 export const DashboardView: React.FC = () => {
   const [activeUploadTab, setActiveUploadTab] = useState<'zip' | 'github' | 'paste'>('zip');
   const [projectName, setProjectName] = useState('api-gateway');
   const [activeRightTab, setActiveRightTab] = useState<'pipeline' | 'logs'>('pipeline');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [progress, setProgress] = useState(65);
+  const [progress, setProgress] = useState(0);
   const [phases, setPhases] = useState<PipelinePhase[]>(pendingPipelinePhases);
   const [logs, setLogs] = useState<ExtendedLogLine[]>([]);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
@@ -60,6 +93,28 @@ export const DashboardView: React.FC = () => {
   const [pipelineError, setPipelineError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
+
+  // --- Recent Runs state (starts empty — populated from the backend, never hardcoded) ---
+  const [recentRuns, setRecentRuns] = useState<RecentRun[]>([]);
+  const [recentRunsStats, setRecentRunsStats] = useState({ totalRuns: 0, fixed: 0, failed: 0 });
+  const [recentRunsLoading, setRecentRunsLoading] = useState(true);
+
+  const refreshRecentRuns = React.useCallback(() => {
+    apiRequest<RecentRunsResponse>('/analysis/recent')
+      .then((res) => {
+        setRecentRuns(res.items);
+        setRecentRunsStats(res.stats);
+      })
+      .catch(() => {
+        // Leave the list empty rather than showing stale/fake data.
+        setRecentRuns([]);
+      })
+      .finally(() => setRecentRunsLoading(false));
+  }, []);
+
+  useEffect(() => {
+    refreshRecentRuns();
+  }, [refreshRecentRuns]);
 
   // --- GitHub tab state ---
   const [githubUrl, setGithubUrl] = useState('');
@@ -179,11 +234,13 @@ paths:
       } else if (data.type === 'analysis.completed') {
         setIsAnalyzing(false);
         setProgress(100);
+        refreshRecentRuns();
         socket.close();
       } else if (data.type === 'analysis.failed') {
         const payload = data.payload as { message?: string };
         setIsAnalyzing(false);
         setPipelineError(payload?.message ?? 'Analysis pipeline failed');
+        refreshRecentRuns();
         socket.close();
       }
     };
@@ -223,6 +280,7 @@ paths:
         method: 'POST',
       });
       setAnalysisId(run.id);
+      refreshRecentRuns();
 
       // 4. Stream phase/log updates over the realtime WebSocket gateway
       connectRealtimeSocket(project.id);
@@ -274,6 +332,7 @@ paths:
         method: 'POST',
       });
       setAnalysisId(run.id);
+      refreshRecentRuns();
 
       connectRealtimeSocket(project.id);
     } catch (error) {
@@ -348,64 +407,62 @@ paths:
                 Recent Runs
               </h2>
               <span className="text-[11px] font-medium text-gray-400 bg-[#161B22] px-2.5 py-0.5 rounded border border-[#30363D]">
-                Today
+                Live
               </span>
             </div>
 
             {/* Run List Items */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between p-3 rounded-md bg-[#161B22] hover:bg-[#21262D] border border-[#30363D] transition-colors">
-                <div className="flex items-center gap-3">
-                  <span className="w-2 h-2 rounded-full bg-green-500 shrink-0 shadow-sm shadow-green-500/50" />
-                  <div>
-                    <div className="text-xs font-semibold font-mono text-gray-200">api-gateway</div>
-                    <div className="text-[11px] text-gray-500">2h ago · 4m 12s</div>
-                  </div>
+              {recentRuns.length === 0 && (
+                <div className="text-[11px] text-gray-500 text-center py-4">
+                  {recentRunsLoading ? 'Loading run history...' : 'No analysis runs yet — start one below.'}
                 </div>
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-green-500/10 text-green-400 border border-green-500/20">
-                  3 bugs fixed
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between p-3 rounded-md bg-[#161B22] hover:bg-[#21262D] border border-[#30363D] transition-colors">
-                <div className="flex items-center gap-3">
-                  <span className="w-2 h-2 rounded-full bg-red-500 shrink-0 shadow-sm shadow-red-500/50" />
-                  <div>
-                    <div className="text-xs font-semibold font-mono text-gray-200">auth-service</div>
-                    <div className="text-[11px] text-gray-500">5h ago · 6m 55s</div>
+              )}
+              {recentRuns.map((run) => {
+                const isRunning = run.status === 'RUNNING' || run.status === 'QUEUED';
+                const isFailed = run.status === 'FAILED';
+                const dotClass = isRunning ? 'bg-amber-400 animate-ping' : isFailed ? 'bg-red-500' : 'bg-green-500';
+                const badgeClass = isRunning
+                  ? 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                  : isFailed
+                  ? 'bg-red-500/10 text-red-400 border border-red-500/20'
+                  : 'bg-green-500/10 text-green-400 border border-green-500/20';
+                const badgeText = isRunning
+                  ? 'running'
+                  : isFailed
+                  ? `${run.bugsFound} bugs found`
+                  : `${run.bugsFixed} bugs fixed`;
+                return (
+                  <div key={run.id} className="flex items-center justify-between p-3 rounded-md bg-[#161B22] hover:bg-[#21262D] border border-[#30363D] transition-colors">
+                    <div className="flex items-center gap-3">
+                      <span className={`w-2 h-2 rounded-full shrink-0 shadow-sm ${dotClass}`} />
+                      <div>
+                        <div className="text-xs font-semibold font-mono text-gray-200">{run.projectName}</div>
+                        <div className="text-[11px] text-gray-500">
+                          {formatRelativeTime(run.createdAt)}{run.durationMs ? ` · ${formatDuration(run.durationMs)}` : isRunning ? ' · active' : ''}
+                        </div>
+                      </div>
+                    </div>
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded ${badgeClass}`}>
+                      {badgeText}
+                    </span>
                   </div>
-                </div>
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20">
-                  7 bugs found
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between p-3 rounded-md bg-[#161B22] hover:bg-[#21262D] border border-[#30363D] transition-colors">
-                <div className="flex items-center gap-3">
-                  <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0 animate-ping" />
-                  <div>
-                    <div className="text-xs font-semibold font-mono text-gray-200">data-pipeline</div>
-                    <div className="text-[11px] text-gray-500">8h ago · active</div>
-                  </div>
-                </div>
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
-                  running
-                </span>
-              </div>
+                );
+              })}
             </div>
 
             {/* Run Stats Summary */}
             <div className="grid grid-cols-3 gap-3 pt-2 border-t border-[#30363D] text-center">
               <div className="p-2.5 rounded bg-[#161B22] border border-[#30363D]">
-                <div className="text-lg font-bold text-white">14</div>
+                <div className="text-lg font-bold text-white">{recentRunsStats.totalRuns}</div>
                 <div className="text-[10px] text-gray-400 uppercase font-semibold">Total Runs</div>
               </div>
               <div className="p-2.5 rounded bg-[#161B22] border border-[#30363D]">
-                <div className="text-lg font-bold text-green-400">11</div>
+                <div className="text-lg font-bold text-green-400">{recentRunsStats.fixed}</div>
                 <div className="text-[10px] text-gray-400 uppercase font-semibold">Fixed</div>
               </div>
               <div className="p-2.5 rounded bg-[#161B22] border border-[#30363D]">
-                <div className="text-lg font-bold text-red-400">3</div>
+                <div className="text-lg font-bold text-red-400">{recentRunsStats.failed}</div>
                 <div className="text-[10px] text-gray-400 uppercase font-semibold">Failed</div>
               </div>
             </div>
