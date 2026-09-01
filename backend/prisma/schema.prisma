@@ -91,6 +91,7 @@ enum Provider {
   anthropic
   deepseek
   custom
+  github
 }
 
 model User {

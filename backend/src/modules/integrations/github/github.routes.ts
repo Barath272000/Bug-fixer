@@ -1,1 +1,11 @@
-import{Router}from'express';import{requireAuth}from'../../../common/middleware/auth.middleware.js';import{asyncHandler}from'../../../common/utils/async-handler.js';import{repos,connect}from'./github.controller.js';export const githubRoutes=Router();githubRoutes.use(requireAuth);githubRoutes.get('/repos',asyncHandler(repos));githubRoutes.post('/connect',asyncHandler(connect));
+import { Router } from 'express';
+import { requireAuth } from '../../../common/middleware/auth.middleware.js';
+import { asyncHandler } from '../../../common/utils/async-handler.js';
+import { repos, connect, saveToken, tokenStatus } from './github.controller.js';
+
+export const githubRoutes = Router();
+githubRoutes.use(requireAuth);
+githubRoutes.get('/repos', asyncHandler(repos));
+githubRoutes.post('/connect', asyncHandler(connect));
+githubRoutes.post('/token', asyncHandler(saveToken));
+githubRoutes.get('/token/status', asyncHandler(tokenStatus));

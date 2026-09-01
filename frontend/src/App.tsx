@@ -177,7 +177,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'analytics' && <AnalyticsView />}
+            {activeTab === 'analytics' && <AnalyticsView projectId={projectId} />}
 
           {activeTab === 'docs' && <DocsView />}
 
