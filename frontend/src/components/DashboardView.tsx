@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { ApiError, apiRequest, getRealtimeSocketUrl, uploadProjectArchive } from '../api/client';
+import { connectGithubRepo, getGithubTokenStatus, parseGithubUrl } from '../api/github';
 import { pipelinePhases as initialPipelinePhases } from '../data/mockData';
 import { ContextDoc, PipelinePhase } from '../types';
 import { ContextDocsUploader } from './ContextDocsUploader';
@@ -60,6 +61,13 @@ export const DashboardView: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
 
+  // --- GitHub tab state ---
+  const [githubUrl, setGithubUrl] = useState('');
+  const [githubBranch, setGithubBranch] = useState('main');
+  const [githubToken, setGithubToken] = useState('');
+  const [githubTokenConnected, setGithubTokenConnected] = useState<boolean | null>(null);
+  const [githubConnecting, setGithubConnecting] = useState(false);
+
   // Optional Context Docs State
   const [contextDocs, setContextDocs] = useState<ContextDoc[]>([
     {
@@ -95,6 +103,11 @@ paths:
       socketRef.current?.close();
     };
   }, []);
+
+  useEffect(() => {
+    if (activeUploadTab !== 'github' || githubTokenConnected !== null) return;
+    getGithubTokenStatus().then(setGithubTokenConnected).catch(() => setGithubTokenConnected(false));
+  }, [activeUploadTab, githubTokenConnected]);
 
   const handleOpenPhaseInspector = (phase: PipelinePhase) => {
     setSelectedPhaseForInspection(phase);
@@ -219,6 +232,57 @@ paths:
     }
   };
 
+  const handleStartGithubAnalysis = async () => {
+    if (isAnalyzing || githubConnecting) return;
+    const parsed = parseGithubUrl(githubUrl);
+    if (!parsed) {
+      setPipelineError('Enter a valid GitHub repository URL, e.g. https://github.com/owner/repo');
+      return;
+    }
+    if (!githubTokenConnected && !githubToken.trim()) {
+      setPipelineError('Paste a GitHub personal access token to connect your account.');
+      return;
+    }
+
+    setPipelineError(null);
+    setGithubConnecting(true);
+    setIsAnalyzing(true);
+    setProgress(0);
+    setLogs([]);
+    setPhases(pendingPipelinePhases);
+    setCurrentExecutingPhase('Project Input');
+
+    try {
+      const project = await apiRequest<{ id: string }>('/projects', {
+        method: 'POST',
+        body: {
+          name: projectName || parsed.repo,
+          sourceType: 'GITHUB',
+          repositoryUrl: githubUrl.trim(),
+          defaultBranch: githubBranch.trim() || undefined,
+        },
+      });
+      setProjectId(project.id);
+
+      await connectGithubRepo(project.id, parsed.owner, parsed.repo, githubBranch.trim() || undefined, githubToken.trim() || undefined);
+      if (githubToken.trim()) {
+        setGithubToken('');
+        setGithubTokenConnected(true);
+      }
+
+      const run = await apiRequest<{ id: string }>(`/analysis/projects/${project.id}/run`, {
+        method: 'POST',
+      });
+      setAnalysisId(run.id);
+
+      connectRealtimeSocket(project.id);
+    } catch (error) {
+      setIsAnalyzing(false);
+      setPipelineError(error instanceof ApiError ? error.message : 'Failed to connect and clone the repository.');
+    } finally {
+      setGithubConnecting(false);
+    }
+  };
 
   const handleClearLogs = () => {
     setLogs([]);
@@ -497,7 +561,9 @@ paths:
                   <label className="block text-[11px] font-semibold text-gray-400 mb-1">Repository URL</label>
                   <input
                     type="text"
-                    defaultValue="https://github.com/organization/api-gateway"
+                    value={githubUrl}
+                    onChange={(e) => setGithubUrl(e.target.value)}
+                    placeholder="https://github.com/organization/repo"
                     className="w-full px-3 py-2 rounded-md bg-[#161B22] border border-[#30363D] text-xs text-gray-200 focus:outline-none focus:border-indigo-500 font-mono"
                   />
                 </div>
@@ -505,10 +571,39 @@ paths:
                   <label className="block text-[11px] font-semibold text-gray-400 mb-1">Branch / Tag</label>
                   <input
                     type="text"
-                    defaultValue="main"
+                    value={githubBranch}
+                    onChange={(e) => setGithubBranch(e.target.value)}
+                    placeholder="main"
                     className="w-full px-3 py-2 rounded-md bg-[#161B22] border border-[#30363D] text-xs text-gray-200 focus:outline-none focus:border-indigo-500 font-mono"
                   />
                 </div>
+
+                {githubTokenConnected === false && (
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-400 mb-1">
+                      GitHub Personal Access Token <span className="text-gray-500 font-normal">(saved securely, one-time)</span>
+                    </label>
+                    <input
+                      type="password"
+                      value={githubToken}
+                      onChange={(e) => setGithubToken(e.target.value)}
+                      placeholder="ghp_..."
+                      className="w-full px-3 py-2 rounded-md bg-[#161B22] border border-[#30363D] text-xs text-gray-200 focus:outline-none focus:border-indigo-500 font-mono"
+                    />
+                  </div>
+                )}
+                {githubTokenConnected === true && (
+                  <p className="text-[11px] text-emerald-400 flex items-center gap-1">
+                    <Check className="w-3 h-3" /> GitHub account connected
+                  </p>
+                )}
+
+                {pipelineError && (
+                  <div className="text-[11px] text-red-300 bg-red-950/40 border border-red-500/30 px-3 py-2 rounded flex items-center gap-1.5">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{pipelineError}</span>
+                  </div>
+                )}
 
                 {/* Optional Context Docs also for GitHub tab */}
                 <ContextDocsUploader
@@ -521,12 +616,12 @@ paths:
                 />
 
                 <button
-                  onClick={handleStartAnalysis}
-                  disabled={isAnalyzing}
+                  onClick={handleStartGithubAnalysis}
+                  disabled={isAnalyzing || githubConnecting}
                   className="w-full py-2.5 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
                 >
                   <Github className="w-3.5 h-3.5" />
-                  <span>{isAnalyzing ? 'Executing Pipeline...' : 'Clone & Run Pipeline'}</span>
+                  <span>{githubConnecting ? 'Connecting...' : isAnalyzing ? 'Executing Pipeline...' : 'Clone & Run Pipeline'}</span>
                 </button>
               </div>
             )}
